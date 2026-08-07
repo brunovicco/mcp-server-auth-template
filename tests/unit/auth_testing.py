@@ -5,8 +5,6 @@ from the same key used to sign the token, and injected through the
 ``DiscoveryPort``/``KeyResolverPort`` fakes in each test module.
 """
 
-from __future__ import annotations
-
 import time
 from dataclasses import dataclass
 

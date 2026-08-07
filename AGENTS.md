@@ -14,7 +14,7 @@ Keep these facts and the commands below current as the project evolves.
 
 ```bash
 uv lock --check
-uv sync --frozen --all-groups
+uv sync --frozen --all-groups --extra observability
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src tests
@@ -58,11 +58,13 @@ gate before completion.
 
 ## Governance
 
-- Run `uv run python scripts/governance_gate.py` as part of the quality gate. When governance is
-  enabled, keep scope, inventories, risks, assessments, and exceptions current.
-- Treat framework mappings as support statements, never as project compliance or certification.
-- Keep generated evidence metadata-only; exclude prompts, responses, source content, credentials,
-  tokens, personal data, and production data.
+- Governance is not enabled in this repository (no `governance/` directory). Run
+  `uv run python scripts/governance_gate.py` as part of the quality gate anyway - with no
+  `governance/governance-profile.json` present it reports `governance_profile: none` and passes.
+- If governance is enabled later, keep scope, inventories, risks, assessments, and exceptions
+  current; treat framework mappings as support statements, never as project compliance or
+  certification; keep generated evidence metadata-only, excluding prompts, responses, source
+  content, credentials, tokens, personal data, and production data.
 
 ## Git and completion
 

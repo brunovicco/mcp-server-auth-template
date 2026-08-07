@@ -1,7 +1,5 @@
 """Unit tests for :func:`scopes_from_claims`."""
 
-from __future__ import annotations
-
 from mcp_server_auth_template.domain.scope_claims import scopes_from_claims
 
 

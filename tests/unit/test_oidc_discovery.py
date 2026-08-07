@@ -1,7 +1,5 @@
 """Unit tests for :class:`OidcDiscoveryClient`."""
 
-from __future__ import annotations
-
 import httpx
 import pytest
 

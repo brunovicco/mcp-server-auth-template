@@ -6,8 +6,6 @@ Covers the two things this adapter adds on top of
 every other check passes.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 import pytest

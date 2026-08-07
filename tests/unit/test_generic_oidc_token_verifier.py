@@ -5,8 +5,6 @@ implementations backed by an in-memory RSA key, so these tests run offline and
 deterministically.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 import pytest

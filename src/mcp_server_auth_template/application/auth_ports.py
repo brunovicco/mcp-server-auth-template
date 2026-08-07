@@ -9,8 +9,6 @@ adapters directly. Tests inject fakes that satisfy these protocols instead of
 performing real network I/O.
 """
 
-from __future__ import annotations
-
 from typing import Protocol
 
 from jwt import PyJWK

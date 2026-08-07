@@ -1,7 +1,5 @@
 """Unit tests for :class:`Settings`."""
 
-from __future__ import annotations
-
 import pytest
 
 from mcp_server_auth_template.entrypoints.settings import Settings

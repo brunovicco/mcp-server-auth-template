@@ -7,8 +7,6 @@ One client is cached per ``jwks_uri`` so repeated calls reuse its internal
 key cache instead of re-fetching the JWKS document per request.
 """
 
-from __future__ import annotations
-
 import asyncio
 
 import jwt

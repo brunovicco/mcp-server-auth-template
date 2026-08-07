@@ -5,8 +5,6 @@ signing keys through the same ``.well-known/openid-configuration`` shape, so
 the discovery call and its cache live here once instead of twice.
 """
 
-from __future__ import annotations
-
 from time import monotonic
 
 import httpx
