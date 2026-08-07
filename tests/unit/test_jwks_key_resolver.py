@@ -6,8 +6,6 @@ reused across calls to the same URI) and that a client-side failure surfaces
 as :class:`SigningKeyError`.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import pytest

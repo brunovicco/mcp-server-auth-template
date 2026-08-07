@@ -3,17 +3,14 @@
 ## Setup
 
 ```bash
-uv sync --frozen --all-groups
-```
-
-Service observability tests exercise the optional OpenTelemetry runtime without a collector:
-
-```bash
 uv sync --frozen --all-groups --extra observability
-uv run pytest tests/unit/test_observability.py tests/unit/test_logging.py
 ```
 
-Tests use in-memory exporters or fakes. Do not point development or CI checks at a real backend.
+The `observability` extra installs the optional OpenTelemetry runtime; without it,
+`tests/unit/test_observability.py` and `tests/unit/test_logging.py` skip via `pytest.importorskip`
+and project-wide coverage falls under the required 80%. CI always installs it (see
+`.github/workflows/quality.yml`) — match that locally. Its tests use in-memory exporters or fakes;
+do not point development or CI checks at a real collector.
 
 ## Run checks
 
@@ -30,10 +27,11 @@ docker run --rm mcp-server-auth-template
 
 `Dockerfile` is a multi-stage, uv-based build: a `builder` stage installs the locked
 dependencies and builds the package, then only the resulting virtualenv and source are copied
-into a slim, non-root runtime image. The shipped `CMD` is a placeholder — this harness is
-framework-agnostic and does not assume an ASGI app, CLI, or worker loop. Replace it with the
-project's real entrypoint. Adjust `.dockerignore` if new top-level files or directories need to
-be excluded from the build context.
+into a slim, non-root runtime image. The shipped `CMD` runs the real ASGI entrypoint
+(`uvicorn mcp_server_auth_template.entrypoints.mcp_server:create_app --factory --host 0.0.0.0
+--port 8000`); provider configuration (`MCP_SERVER_*` variables, see `.env.example`) is supplied
+at container-run time via the environment, never baked into the image. Adjust `.dockerignore` if
+new top-level files or directories need to be excluded from the build context.
 
 ## Local configuration
 

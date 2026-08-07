@@ -13,8 +13,6 @@ Run locally with:
     uv run uvicorn mcp_server_auth_template.entrypoints.mcp_server:create_app --factory --reload
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -66,6 +64,42 @@ def _build_token_verifier(settings: Settings, *, http_client: httpx.AsyncClient)
     )
 
 
+def _whoami() -> dict[str, object]:
+    """Return the identity carried by the caller's bearer token."""
+    access_token = get_access_token()
+    if access_token is None:
+        return {"authenticated": False}
+    return {
+        "authenticated": True,
+        "client_id": access_token.client_id,
+        "subject": access_token.subject,
+        "scopes": access_token.scopes,
+    }
+
+
+def _health() -> dict[str, str]:
+    """Liveness check for the authenticated caller."""
+    return {"status": "ok"}
+
+
+def _resolve_issuer_url(settings: Settings) -> str:
+    """Return the OIDC issuer URL for ``settings.auth_provider``.
+
+    Raises:
+        RuntimeError: No issuer URL could be resolved. ``Settings`` already
+            validates the generic-provider fields at startup, so reaching
+            this branch means ``Settings`` was constructed without going
+            through its own validator (e.g. in a test).
+    """
+    if settings.auth_provider == "entra":
+        return f"https://login.microsoftonline.com/{settings.entra_tenant_id}/v2.0"
+    if settings.generic_issuer_url is None:
+        raise RuntimeError(
+            f"could not resolve issuer_url for auth_provider={settings.auth_provider!r}"
+        )
+    return settings.generic_issuer_url
+
+
 def build_server() -> MCPServer:
     """Construct the configured ``MCPServer``, ready to serve as an ASGI app."""
     settings = Settings()  # values come from the environment
@@ -73,16 +107,7 @@ def build_server() -> MCPServer:
 
     http_client = httpx.AsyncClient(timeout=10.0)
     token_verifier = _build_token_verifier(settings, http_client=http_client)
-
-    issuer_url = (
-        f"https://login.microsoftonline.com/{settings.entra_tenant_id}/v2.0"
-        if settings.auth_provider == "entra"
-        else settings.generic_issuer_url
-    )
-    if issuer_url is None:
-        raise RuntimeError(
-            f"could not resolve issuer_url for auth_provider={settings.auth_provider!r}"
-        )
+    issuer_url = _resolve_issuer_url(settings)
 
     @asynccontextmanager
     async def lifespan(_: MCPServer) -> AsyncIterator[None]:
@@ -102,21 +127,10 @@ def build_server() -> MCPServer:
         lifespan=lifespan,
     )
 
-    @server.tool(description="Return the identity carried by the caller's bearer token.")
-    def whoami() -> dict[str, object]:
-        access_token = get_access_token()
-        if access_token is None:
-            return {"authenticated": False}
-        return {
-            "authenticated": True,
-            "client_id": access_token.client_id,
-            "subject": access_token.subject,
-            "scopes": access_token.scopes,
-        }
-
-    @server.tool(description="Liveness check for the authenticated caller.")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    server.tool(
+        name="whoami", description="Return the identity carried by the caller's bearer token."
+    )(_whoami)
+    server.tool(name="health", description="Liveness check for the authenticated caller.")(_health)
 
     return server
 

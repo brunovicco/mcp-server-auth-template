@@ -2,7 +2,20 @@
 
 ## Context
 
-Describe the business capability owned by this service and its upstream and downstream dependencies.
+This service is a reusable template for an MCP server that acts as an OAuth 2.1 **resource
+server** (RFC 9728) - it never issues tokens itself. Its one job is verifying bearer tokens a
+client already obtained and translating their claims into the identity the server's tools see. See
+`docs/adr/0002-oauth21-resource-server.md` for why token issuance is out of scope.
+
+- **Upstream dependency**: exactly one authorization server per deployment - either Microsoft
+  Entra ID or any standards-compliant OIDC authorization server (Auth0, Keycloak, WorkOS AuthKit,
+  ...), selected by `MCP_SERVER_AUTH_PROVIDER`. This service reads the AS's OIDC discovery document
+  and JWKS to verify signatures; it never calls the AS's token endpoint.
+- **Downstream dependency**: MCP clients (2026-07-28 spec) that discover this server's Protected
+  Resource Metadata at `/.well-known/oauth-protected-resource`, obtain a token from the configured
+  AS, and call the registered tools (`whoami`, `health`) with that token as a bearer credential.
+- **Companion repository**: [`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template)
+  owns the client-side half of this pattern (token acquisition, client registration).
 
 ## Layers
 
@@ -54,4 +67,23 @@ domain      -> no outer layer
 
 ## Diagrams
 
-Add C4 context/container diagrams and sequence diagrams for critical flows.
+Resource-server bearer-token flow (the only critical flow this service owns; token issuance
+happens entirely on the authorization server and is out of scope):
+
+```mermaid
+sequenceDiagram
+    participant Client as MCP client
+    participant Server as This resource server
+    participant AS as Authorization server<br/>(Entra ID / generic OIDC)
+
+    Client->>Server: Call a tool, no bearer token
+    Server-->>Client: 401 + WWW-Authenticate
+    Client->>Server: GET /.well-known/oauth-protected-resource
+    Server-->>Client: Protected Resource Metadata (points at AS)
+    Client->>AS: Obtain a token (out of scope for this repo)
+    AS-->>Client: Access token
+    Client->>Server: Call a tool, Authorization: Bearer <token>
+    Server->>AS: Fetch OIDC discovery + JWKS (cached)
+    Server->>Server: Verify signature, issuer, audience, expiry
+    Server-->>Client: Tool result
+```

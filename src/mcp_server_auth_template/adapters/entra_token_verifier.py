@@ -14,8 +14,6 @@ for. Skipping it lets a token from a *different* tenant that happens to share
 the same multi-tenant app registration pass every other check.
 """
 
-from __future__ import annotations
-
 import structlog
 from mcp.server.auth.provider import AccessToken
 

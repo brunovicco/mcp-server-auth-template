@@ -5,8 +5,6 @@ application-layer port in ``application/auth_ports.py`` can reference its
 shape without depending on the adapters layer.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 

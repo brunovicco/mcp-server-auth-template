@@ -5,8 +5,6 @@ Exactly one authorization-server mode is active per deployment: set
 matching block below. See ``.env.example`` for a filled-out sample of each.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic import AnyHttpUrl, model_validator
@@ -33,7 +31,7 @@ class Settings(BaseSettings):
     generic_audience: str | None = None
 
     @model_validator(mode="after")
-    def _require_matching_provider_fields(self) -> Settings:
+    def _require_matching_provider_fields(self) -> "Settings":
         if self.auth_provider == "entra":
             missing = [
                 name

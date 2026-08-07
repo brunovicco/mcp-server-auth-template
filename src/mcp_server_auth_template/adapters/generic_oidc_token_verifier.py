@@ -14,8 +14,6 @@ tokens that a client already obtained and validates that they were minted
 for *this* resource (RFC 8707 audience binding).
 """
 
-from __future__ import annotations
-
 import jwt
 import structlog
 from mcp.server.auth.provider import AccessToken

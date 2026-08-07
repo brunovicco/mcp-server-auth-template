@@ -7,8 +7,6 @@ that idea in two: ``scp`` for scopes delegated by a signed-in user, and
 user present. A token can carry either, both, or neither claim.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 

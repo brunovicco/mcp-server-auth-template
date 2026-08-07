@@ -6,8 +6,6 @@ public contract with the MCP SDK is still "return ``None`` from
 (see ``AGENTS.md`` for why we never leak verification detail to the caller).
 """
 
-from __future__ import annotations
-
 
 class TokenVerificationError(Exception):
     """Base class for any failure while verifying a bearer token."""
