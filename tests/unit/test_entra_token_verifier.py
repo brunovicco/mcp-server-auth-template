@@ -2,8 +2,8 @@
 
 Covers the Entra-specific behavior layered on top of
 :class:`GenericOidcTokenVerifier`: tenant binding through ``tid`` and
-qualification of the short ``scp``/``roles`` permission values with the
-configured Application ID URI.
+qualification of delegated ``scp`` values with the configured Application ID URI. Application
+roles remain separate from SDK scopes.
 """
 
 from dataclasses import dataclass
@@ -73,35 +73,44 @@ async def test_accepts_and_qualifies_a_delegated_scope_from_the_configured_tenan
     assert access_token.scopes == [f"{_APPLICATION_ID_URI}/mcp:tools:call"]
 
 
-async def test_accepts_and_qualifies_an_application_role(keypair: SigningKeyPair) -> None:
+async def test_application_role_cannot_satisfy_the_sdk_scope_gate(keypair: SigningKeyPair) -> None:
     token = sign_test_token(
         keypair,
         issuer=_ISSUER,
         audience=_AUDIENCE,
         scopes=None,
-        extra_claims={"tid": _TENANT_ID, "roles": ["Data.Read"]},
+        extra_claims={"tid": _TENANT_ID, "roles": ["mcp:tools:call"]},
     )
 
     access_token = await _verifier(keypair).verify_token(token)
 
     assert access_token is not None
-    assert access_token.scopes == [f"{_APPLICATION_ID_URI}/Data.Read"]
+    assert access_token.scopes == []
+    assert access_token.claims is not None
+    assert access_token.claims["roles"] == ["mcp:tools:call"]
 
 
-async def test_does_not_rewrite_an_already_qualified_permission(keypair: SigningKeyPair) -> None:
-    qualified = "api://other-resource/Data.Read"
+async def test_roles_remain_separate_when_a_delegated_token_also_has_roles(
+    keypair: SigningKeyPair,
+) -> None:
     token = sign_test_token(
         keypair,
         issuer=_ISSUER,
         audience=_AUDIENCE,
         scopes=None,
-        extra_claims={"tid": _TENANT_ID, "roles": [qualified]},
+        extra_claims={
+            "tid": _TENANT_ID,
+            "scp": "mcp:tools:call",
+            "roles": ["Operator"],
+        },
     )
 
     access_token = await _verifier(keypair).verify_token(token)
 
     assert access_token is not None
-    assert access_token.scopes == [qualified]
+    assert access_token.scopes == [f"{_APPLICATION_ID_URI}/mcp:tools:call"]
+    assert access_token.claims is not None
+    assert access_token.claims["roles"] == ["Operator"]
 
 
 async def test_rejects_a_token_from_a_different_tenant(keypair: SigningKeyPair) -> None:

@@ -53,9 +53,15 @@ api://33333333-3333-3333-3333-333333333333/mcp:tools:call
 ```
 
 After signature, issuer, audience, expiry, and tenant validation, the Entra
-token adapter qualifies the short permissions extracted from `scp`/`roles`
-with the same Application ID URI. The MCP SDK therefore compares identical
-canonical strings when enforcing required scopes.
+token adapter qualifies only delegated OAuth scopes extracted from `scp` with
+the same Application ID URI. The MCP SDK therefore compares identical
+canonical scope strings when enforcing `required_scopes`.
+
+`roles` is intentionally not normalized into `AccessToken.scopes`. Entra uses
+that claim for application permissions on app-only tokens and can also emit it
+for roles assigned to a signed-in user. Treating it as an OAuth scope would
+collapse two authorization namespaces and could let an application permission
+satisfy a delegated-scope policy. See ADR-0004.
 
 Already URI-qualified permission values are preserved rather than rewritten.
 A permission qualified for another resource consequently remains different and

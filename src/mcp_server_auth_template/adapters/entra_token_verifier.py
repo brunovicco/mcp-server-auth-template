@@ -9,8 +9,9 @@ server half of that pattern - it only verifies tokens Entra already issued.
 It reuses :class:`GenericOidcTokenVerifier` for signature/issuer/audience/
 expiry checks against Entra's own tenant-scoped OIDC discovery document, then
 adds two Entra-specific normalizations: tenant binding through ``tid`` and
-qualification of short ``scp``/``roles`` values with the API's Application ID
-URI so they match the scope strings advertised to MCP clients.
+qualification of short delegated ``scp`` values with the API's Application ID
+URI so they match the scope strings advertised to MCP clients. ``roles`` stays
+separate in the validated raw claims and never enters the SDK scope gate.
 """
 
 import structlog
