@@ -11,6 +11,7 @@ import threading
 from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sequence
 from typing import Any
 
+import structlog
 from opentelemetry.context import Context
 from opentelemetry.propagators.textmap import CarrierT
 from opentelemetry.sdk.resources import Resource
@@ -28,6 +29,8 @@ from opentelemetry.trace import (
 )
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from opentelemetry.util import types as otel_types
+
+logger = structlog.get_logger(__name__)
 
 type AttributeScalar = str | bool | int | float
 
@@ -309,7 +312,8 @@ class TelemetryLifecycle:
                     )
                 )
                 provider.add_span_processor(BatchSpanProcessor(exporter))
-            except Exception:
+            except Exception as exc:
+                logger.debug("tracer_initialization_failed", reason=type(exc).__name__)
                 return self._tracer
             self._provider = provider
             self._tracer = SafeTracer(
@@ -348,7 +352,8 @@ def _bounded_call(operation: Callable[[], Any], timeout_seconds: float) -> bool:
         try:
             result = operation()
             succeeded = result is not False
-        except Exception:
+        except Exception as exc:
+            logger.debug("tracer_lifecycle_operation_failed", reason=type(exc).__name__)
             succeeded = False
         finally:
             completed.set()

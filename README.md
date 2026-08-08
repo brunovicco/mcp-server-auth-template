@@ -63,6 +63,13 @@ no other code changes. See `src/mcp_server_auth_template/adapters/` for the two
 `TokenVerifier` implementations and `tests/unit/test_*_token_verifier.py` for how
 each is tested offline with a locally-signed JWT (no network, no real IdP needed).
 
+## Authentication flow
+
+`docs/ARCHITECTURE.md` has a sequence diagram of the full bearer-token round trip - the 401
+challenge, Protected Resource Metadata discovery, token acquisition on the authorization server
+(out of scope for this repo), and signature/issuer/audience verification on every subsequent call.
+See [Diagrams](docs/ARCHITECTURE.md#diagrams).
+
 ## Development
 
 ```bash

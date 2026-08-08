@@ -1,5 +1,9 @@
 # Model Context Protocol policy
 
+> This document is Codex's own policy for *consuming* MCP servers from within this repository's
+> development environment. It is not documentation of this project's behavior as an MCP server -
+> see `docs/ARCHITECTURE.md` and the root `README.md` for that.
+
 MCP gives Codex structured access to external systems. Every server expands the trust boundary,
 data-egress surface, and possible external actions, so add one only for a documented need.
 
