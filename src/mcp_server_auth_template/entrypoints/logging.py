@@ -9,9 +9,55 @@ the security and observability contract in ``AGENTS.md``.
 
 import logging
 import os
+import re
 import sys
 
 import structlog
+
+_SENSITIVE_LOG_FIELDS = frozenset(
+    {
+        "access_token",
+        "authorization",
+        "bearer_token",
+        "client_secret",
+        "code_verifier",
+        "id_token",
+        "password",
+        "proxy_authorization",
+        "refresh_token",
+        "token",
+    }
+)
+_BEARER_PATTERN = re.compile(r"(?i)\bbearer\s+[^\s,;]+")
+_QUERY_SECRET_PATTERN = re.compile(
+    r"(?i)(access_token|refresh_token|id_token|client_secret)=([^&\s]+)"
+)
+_REDACTED = "[REDACTED]"
+
+
+def redact_security_secrets(
+    _: object, __: str, event_dict: structlog.typing.EventDict
+) -> structlog.typing.EventDict:
+    """Redact credential-shaped fields and bearer strings before any renderer sees them."""
+    for key, value in list(event_dict.items()):
+        event_dict[key] = _redact_log_value(key, value)
+    return event_dict
+
+
+def _redact_log_value(key: str, value: object) -> object:
+    normalized_key = key.lower().replace("-", "_")
+    if normalized_key in _SENSITIVE_LOG_FIELDS:
+        return _REDACTED
+    if isinstance(value, dict):
+        return {str(k): _redact_log_value(str(k), v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_log_value("", item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_log_value("", item) for item in value)
+    if isinstance(value, str):
+        redacted = _BEARER_PATTERN.sub("Bearer [REDACTED]", value)
+        return _QUERY_SECRET_PATTERN.sub(lambda match: f"{match.group(1)}={_REDACTED}", redacted)
+    return value
 
 
 def add_trace_context(
@@ -45,6 +91,7 @@ def configure_logging(*, service: str, environment: str, version: str) -> None:
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
+        redact_security_secrets,
     ]
 
     structlog.configure(

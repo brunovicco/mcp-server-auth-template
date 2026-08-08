@@ -1,6 +1,10 @@
-"""Unit tests for scope claim extraction and qualification."""
+"""Unit tests for scope/role claim extraction and scope qualification."""
 
-from mcp_server_auth_template.domain.scope_claims import qualify_scopes, scopes_from_claims
+from mcp_server_auth_template.domain.scope_claims import (
+    qualify_scopes,
+    roles_from_claims,
+    scopes_from_claims,
+)
 
 
 def test_reads_a_plain_oauth_scope_string() -> None:
@@ -14,18 +18,29 @@ def test_reads_entra_delegated_scp_claim() -> None:
     assert scopes_from_claims({"scp": "Data.Read Data.Write"}) == ["Data.Read", "Data.Write"]
 
 
-def test_reads_entra_application_roles_claim() -> None:
-    assert scopes_from_claims({"roles": ["Data.Read", "Data.Write"]}) == ["Data.Read", "Data.Write"]
+def test_application_roles_do_not_become_oauth_scopes() -> None:
+    assert scopes_from_claims({"roles": ["Data.Read", "Data.Write"]}) == []
 
 
-def test_merges_and_deduplicates_across_all_three_claims() -> None:
+def test_reads_roles_through_the_explicit_role_extractor() -> None:
+    assert roles_from_claims({"roles": ["Data.Write", "Data.Read", "Data.Read", 123, ""]}) == [
+        "Data.Read",
+        "Data.Write",
+    ]
+
+
+def test_merges_only_scope_and_scp_claims() -> None:
     claims = {"scope": "shared", "scp": "shared delegated", "roles": ["shared", "app-only"]}
 
-    assert scopes_from_claims(claims) == ["app-only", "delegated", "shared"]
+    assert scopes_from_claims(claims) == ["delegated", "shared"]
+    assert roles_from_claims(claims) == ["app-only", "shared"]
 
 
-def test_returns_an_empty_list_when_no_scope_claim_is_present() -> None:
-    assert scopes_from_claims({"sub": "user-123"}) == []
+def test_returns_empty_lists_when_permission_claims_are_absent() -> None:
+    claims = {"sub": "user-123"}
+
+    assert scopes_from_claims(claims) == []
+    assert roles_from_claims(claims) == []
 
 
 def test_qualifies_short_permissions_with_the_resource_uri() -> None:

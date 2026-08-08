@@ -1,69 +1,80 @@
-"""OpenID Connect discovery, cached per issuer.
+"""Strict OpenID Connect discovery cached only after trust validation."""
 
-Both the Entra ID adapter and the generic OAuth 2.1 adapter resolve their
-signing keys through the same ``.well-known/openid-configuration`` shape, so
-the discovery call and its cache live here once instead of twice.
-"""
-
+import asyncio
 from time import monotonic
 
 import httpx
 from cachetools import TTLCache
 
+from mcp_server_auth_template.adapters.oidc_http_security import (
+    OidcNetworkSecurityError,
+    OidcNetworkSecurityPolicy,
+)
+from mcp_server_auth_template.adapters.oidc_json import OidcDocumentError, parse_json_object
 from mcp_server_auth_template.domain.auth_errors import DiscoveryError
 from mcp_server_auth_template.domain.oidc_metadata import OidcMetadata
 
-_DISCOVERY_SUFFIX = "/.well-known/openid-configuration"
 _DEFAULT_CACHE_TTL_SECONDS = 3600
-_DEFAULT_CACHE_SIZE = 32
+_DEFAULT_CACHE_SIZE = 8
+_JSON_MEDIA_TYPES = {"application/json"}
 
 
 class OidcDiscoveryClient:
-    """Fetches and caches OIDC discovery documents.
-
-    One instance should be shared for the process lifetime (constructed once
-    in ``entrypoints/mcp_server.py`` and injected into whichever token
-    verifier needs it) so the TTL cache is actually shared across requests.
-    """
+    """Resolve one configured issuer's discovery document through a secure HTTP boundary."""
 
     def __init__(
         self,
         *,
         http_client: httpx.AsyncClient,
+        policy: OidcNetworkSecurityPolicy,
         cache_ttl_seconds: int = _DEFAULT_CACHE_TTL_SECONDS,
         cache_size: int = _DEFAULT_CACHE_SIZE,
     ) -> None:
-        """Build a discovery client; ``http_client`` is shared, not owned, by this instance."""
+        """Build a discovery client; the shared HTTP client is owned by the entrypoint."""
+        if cache_ttl_seconds <= 0 or cache_size <= 0:
+            raise ValueError("discovery cache TTL and size must be positive")
         self._http_client = http_client
+        self._policy = policy
         self._cache: TTLCache[str, OidcMetadata] = TTLCache(
             maxsize=cache_size, ttl=cache_ttl_seconds, timer=monotonic
         )
+        self._fetch_lock = asyncio.Lock()
 
     async def resolve(self, issuer_base_url: str) -> OidcMetadata:
-        """Return the cached or freshly-fetched metadata for ``issuer_base_url``.
-
-        Args:
-            issuer_base_url: The issuer URL with no trailing slash and no
-                ``/.well-known/...`` suffix, e.g.
-                ``https://login.microsoftonline.com/<tenant-id>/v2.0``.
-
-        Raises:
-            DiscoveryError: The document could not be fetched or parsed.
-        """
+        """Return trusted metadata for the exact issuer configured in ``policy``."""
+        if issuer_base_url != self._policy.issuer_url:
+            raise DiscoveryError("OIDC discovery requested for an untrusted issuer")
         cached = self._cache.get(issuer_base_url)
         if cached is not None:
             return cached
 
-        metadata = await self._fetch(issuer_base_url)
-        self._cache[issuer_base_url] = metadata
-        return metadata
+        async with self._fetch_lock:
+            cached = self._cache.get(issuer_base_url)
+            if cached is not None:
+                return cached
+            metadata = await self._fetch()
+            self._cache[issuer_base_url] = metadata
+            return metadata
 
-    async def _fetch(self, issuer_base_url: str) -> OidcMetadata:
-        url = issuer_base_url.rstrip("/") + _DISCOVERY_SUFFIX
+    async def _fetch(self) -> OidcMetadata:
+        url = self._policy.discovery_url
         try:
             response = await self._http_client.get(url)
             response.raise_for_status()
-            document = response.json()
-            return OidcMetadata(issuer=document["issuer"], jwks_uri=document["jwks_uri"])
-        except (httpx.HTTPError, KeyError, ValueError) as exc:
-            raise DiscoveryError(f"could not resolve OIDC metadata from {url}") from exc
+            media_type = response.headers.get("Content-Type", "").split(";", maxsplit=1)[0].lower()
+            if media_type not in _JSON_MEDIA_TYPES:
+                raise OidcDocumentError("OIDC discovery response must be application/json")
+            document = parse_json_object(
+                response.content,
+                max_bytes=self._policy.discovery_max_bytes,
+            )
+            issuer = document.get("issuer")
+            jwks_uri = document.get("jwks_uri")
+            if not isinstance(issuer, str) or not issuer:
+                raise OidcDocumentError("OIDC discovery issuer must be a non-empty string")
+            if not isinstance(jwks_uri, str) or not jwks_uri:
+                raise OidcDocumentError("OIDC discovery jwks_uri must be a non-empty string")
+            self._policy.assert_metadata_trusted(issuer=issuer, jwks_uri=jwks_uri)
+            return OidcMetadata(issuer=issuer, jwks_uri=jwks_uri)
+        except (httpx.HTTPError, OidcDocumentError, OidcNetworkSecurityError) as exc:
+            raise DiscoveryError("could not resolve trusted OIDC metadata") from exc
