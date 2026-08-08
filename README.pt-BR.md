@@ -63,6 +63,13 @@ mudança de código é necessária. Veja `src/mcp_server_auth_template/adapters/
 implementações de `TokenVerifier` e `tests/unit/test_*_token_verifier.py` para como cada uma é
 testada offline com um JWT assinado localmente (sem rede, sem IdP real).
 
+## Fluxo de autenticação
+
+`docs/ARCHITECTURE.md` tem um diagrama de sequência do ciclo completo do bearer token - o desafio
+401, a descoberta do Protected Resource Metadata, a obtenção do token no authorization server (fora
+do escopo deste repositório), e a verificação de assinatura/issuer/audience em cada chamada
+seguinte. Veja [Diagrams](docs/ARCHITECTURE.md#diagrams).
+
 ## Desenvolvimento
 
 ```bash
