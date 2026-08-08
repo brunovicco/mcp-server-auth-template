@@ -18,6 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   verifiers are tested offline against fakes with a locally-signed JWT - no network, no real IdP.
 - Scope/role claim normalization (`scope_claims.py`) covering both plain `scope` strings and
   Entra's split `scp`/`roles` claims.
+- Entra scope-contract normalization that separates the v2 access-token audience from the
+  Application ID URI, advertises requestable `api://.../<scope>` values to MCP clients, and
+  qualifies short `scp`/`roles` permissions before SDK scope enforcement.
 - Two example tools: `whoami` (identity from the caller's token) and `health` (authenticated
   liveness check).
 - Structured logging (`structlog`) and opt-in, vendor-neutral OpenTelemetry tracing

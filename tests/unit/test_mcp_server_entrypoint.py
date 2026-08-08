@@ -22,11 +22,16 @@ from mcp_server_auth_template.entrypoints.mcp_server import (
 )
 from mcp_server_auth_template.entrypoints.settings import Settings
 
+_API_CLIENT_ID = "33333333-3333-3333-3333-333333333333"
+_APPLICATION_ID_URI = f"api://{_API_CLIENT_ID}"
+
 _ENTRA_ENV = {
     "MCP_SERVER_RESOURCE_SERVER_URL": "https://mcp.example.invalid",
+    "MCP_SERVER_REQUIRED_SCOPES": '["mcp:tools:call"]',
     "MCP_SERVER_AUTH_PROVIDER": "entra",
     "MCP_SERVER_ENTRA_TENANT_ID": "11111111-1111-1111-1111-111111111111",
-    "MCP_SERVER_ENTRA_AUDIENCE": "api://00000000-0000-0000-0000-000000000000",
+    "MCP_SERVER_ENTRA_AUDIENCE": _API_CLIENT_ID,
+    "MCP_SERVER_ENTRA_APPLICATION_ID_URI": _APPLICATION_ID_URI,
 }
 
 _GENERIC_ENV = {
@@ -53,7 +58,8 @@ async def test_builds_an_entra_verifier_for_entra_settings(http_client: httpx.As
         auth_provider="entra",
         resource_server_url="https://mcp.example.invalid",
         entra_tenant_id="11111111-1111-1111-1111-111111111111",
-        entra_audience="api://00000000-0000-0000-0000-000000000000",
+        entra_audience=_API_CLIENT_ID,
+        entra_application_id_uri=_APPLICATION_ID_URI,
     )
 
     verifier = _build_token_verifier(settings, http_client=http_client)
@@ -88,6 +94,7 @@ async def test_build_token_verifier_rejects_entra_settings_missing_required_fiel
         required_scopes=[],
         entra_tenant_id=None,
         entra_audience=None,
+        entra_application_id_uri=None,
         generic_issuer_url=None,
         generic_audience=None,
     )
@@ -106,6 +113,7 @@ async def test_build_token_verifier_rejects_generic_settings_missing_required_fi
         required_scopes=[],
         entra_tenant_id=None,
         entra_audience=None,
+        entra_application_id_uri=None,
         generic_issuer_url=None,
         generic_audience=None,
     )
@@ -119,7 +127,8 @@ def test_resolve_issuer_url_templates_the_entra_tenant() -> None:
         auth_provider="entra",
         resource_server_url="https://mcp.example.invalid",
         entra_tenant_id="11111111-1111-1111-1111-111111111111",
-        entra_audience="api://00000000-0000-0000-0000-000000000000",
+        entra_audience=_API_CLIENT_ID,
+        entra_application_id_uri=_APPLICATION_ID_URI,
     )
 
     assert (
@@ -147,6 +156,7 @@ def test_resolve_issuer_url_raises_when_generic_issuer_is_missing() -> None:
         required_scopes=[],
         entra_tenant_id=None,
         entra_audience=None,
+        entra_application_id_uri=None,
         generic_issuer_url=None,
         generic_audience=None,
     )
@@ -195,6 +205,7 @@ def test_build_server_wires_an_entra_resource_server(monkeypatch: pytest.MonkeyP
         "https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/v2.0"
     )
     assert str(server.settings.auth.resource_server_url) == "https://mcp.example.invalid/"
+    assert server.settings.auth.required_scopes == [f"{_APPLICATION_ID_URI}/mcp:tools:call"]
 
 
 @pytest.mark.integration

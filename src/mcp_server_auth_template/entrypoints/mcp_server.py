@@ -45,11 +45,19 @@ def _build_token_verifier(settings: Settings, *, http_client: httpx.AsyncClient)
     key_resolver = JwksKeyResolver()
 
     if settings.auth_provider == "entra":
-        if not (settings.entra_tenant_id and settings.entra_audience):
-            raise RuntimeError("auth_provider=entra requires entra_tenant_id and entra_audience")
+        if not (
+            settings.entra_tenant_id
+            and settings.entra_audience
+            and settings.entra_application_id_uri
+        ):
+            raise RuntimeError(
+                "auth_provider=entra requires entra_tenant_id, entra_audience, "
+                "and entra_application_id_uri"
+            )
         return EntraTokenVerifier(
             tenant_id=settings.entra_tenant_id,
             audience=settings.entra_audience,
+            application_id_uri=settings.entra_application_id_uri,
             discovery=discovery,
             key_resolver=key_resolver,
         )
@@ -122,7 +130,7 @@ def build_server() -> MCPServer:
         auth=AuthSettings(
             issuer_url=issuer_url,
             resource_server_url=settings.resource_server_url,
-            required_scopes=settings.required_scopes or None,
+            required_scopes=settings.effective_required_scopes or None,
         ),
         lifespan=lifespan,
     )
