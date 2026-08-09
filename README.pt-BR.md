@@ -136,6 +136,8 @@ Esta é uma implementação de referência transparente, não uma certificação
   Bandit, auditoria de dependências e baseline executável de confiança da supply chain;
 - GitHub Actions fixadas por SHA, permissões read-only, updates semanais controlados e revisão de
   dependências/licenças nos pull requests;
+- inventários CycloneDX de código/runtime, evidência de vulnerabilidades da imagem com checksum e
+  gate fail-closed para exceções temporárias;
 - Python 3.13/3.14 contra MCP SDK 2.0.0 e a versão 2.x compatível mais recente;
 - Entra/OIDC genérico em HTTPS de produção e perfis locais IPv4/IPv6 explicitamente habilitados;
 - contrato canônico entre repositórios e suíte OAuth/MCP E2E real de 12 cenários mantida pelo
