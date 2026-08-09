@@ -31,7 +31,7 @@ not claimed by the local pair test.
 
 ## Compatibility
 
-Release `v0.2.0` supports Python **3.13 and 3.14**, MCP Python SDK **2.x**
+Release `v0.3.0` supports Python **3.13 and 3.14**, MCP Python SDK **2.x**
 (`>=2.0,<3`), and the MCP **2026-07-28** reference profile. CI continuously exercises the SDK
 support floor (`2.0.0`) and the latest compatible 2.x, both auth providers, production HTTPS,
 explicit IPv4/IPv6 loopback development profiles, and the versioned client/server pair contract.
