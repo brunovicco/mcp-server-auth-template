@@ -1,7 +1,9 @@
 # mcp-server-auth-template
 
 [![quality](https://github.com/brunovicco/mcp-server-auth-template/actions/workflows/quality.yml/badge.svg)](https://github.com/brunovicco/mcp-server-auth-template/actions/workflows/quality.yml)
-![python](https://img.shields.io/badge/python-3.13-blue.svg)
+[![compatibility](https://github.com/brunovicco/mcp-server-auth-template/actions/workflows/compatibility.yml/badge.svg)](https://github.com/brunovicco/mcp-server-auth-template/actions/workflows/compatibility.yml)
+[![release](https://img.shields.io/github/v/release/brunovicco/mcp-server-auth-template)](https://github.com/brunovicco/mcp-server-auth-template/releases)
+![python](https://img.shields.io/badge/python-3.13%20%7C%203.14-blue.svg)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 *[Leia em português](README.pt-BR.md)*
@@ -11,15 +13,26 @@ authorization server - against either Microsoft Entra ID or any standards-compli
 authorization server (Auth0, Keycloak, WorkOS AuthKit, ...). Targets the MCP **2026-07-28**
 specification.
 
-The MCP 2026-07-28 authorization spec models every remote MCP server this way: it verifies bearer
-tokens minted elsewhere, it never mints them itself. Entra ID also can't act as a full MCP
-authorization server for arbitrary clients (no Dynamic Client Registration, no Client ID Metadata
-Documents), so a real integration needs an adapter either way. This template is that adapter,
-built once, correctly, so a new MCP server doesn't have to re-derive JWKS caching, issuer/audience
-checks, and Entra's split `scp`/`roles` claim shape from scratch. See
+The MCP 2026-07-28 authorization model keeps a remote MCP server at the OAuth resource-server
+boundary: it publishes Protected Resource Metadata and validates access tokens issued by an
+external authorization server. This template implements that boundary for Entra ID and generic
+OIDC, including issuer/audience checks, hardened JWKS retrieval, scope enforcement, and Entra's
+split delegated/application claim shapes. Entra deployments use pre-registered client
+applications; client registration itself remains an authorization-server concern. See
 `docs/adr/0002-oauth21-resource-server.md` for the full reasoning, and the companion repository,
 [`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template), for the
 client-side half of this pattern.
+
+## Compatibility
+
+Release `v0.2.0` supports Python **3.13 and 3.14**, MCP Python SDK **2.x**
+(`>=2.0,<3`), and the MCP **2026-07-28** reference profile. CI continuously exercises the SDK
+support floor (`2.0.0`) and the latest compatible 2.x, both auth providers, production HTTPS,
+explicit IPv4/IPv6 loopback development profiles, and the versioned client/server pair contract.
+
+See [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) for the executable support policy and its
+scope. Provider-specific live IdP interoperability is intentionally not claimed by the local
+deterministic matrix.
 
 ## Auth quick start
 

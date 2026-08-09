@@ -2,30 +2,45 @@
 
 All notable changes to this project are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-09
+
 ### Added
 
-- OAuth 2.1 resource-server authentication for MCP servers (RFC 9728 Protected Resource
-  Metadata, `401` + `WWW-Authenticate` challenge), targeting the MCP `2026-07-28` specification.
-- Two `TokenVerifier` adapters selected by `MCP_SERVER_AUTH_PROVIDER`: a generic OIDC verifier
-  (`generic_oidc_token_verifier.py`) for any standards-compliant authorization server (Auth0,
-  Keycloak, WorkOS AuthKit, ...), and an Entra ID verifier (`entra_token_verifier.py`) that wraps
-  the generic one and adds `tid` tenant-binding.
-- OIDC discovery and JWKS resolution behind `DiscoveryPort`/`KeyResolverPort` protocols, so
-  verifiers are tested offline against fakes with a locally-signed JWT - no network, no real IdP.
-- Scope/role claim normalization (`scope_claims.py`) covering both plain `scope` strings and
-  Entra's split `scp`/`roles` claims.
-- Entra scope-contract normalization that separates the v2 access-token audience from the
-  Application ID URI, advertises requestable `api://.../<scope>` values to MCP clients, and
-  qualifies short `scp`/`roles` permissions before SDK scope enforcement.
-- Two example tools: `whoami` (identity from the caller's token) and `health` (authenticated
-  liveness check).
-- Structured logging (`structlog`) and opt-in, vendor-neutral OpenTelemetry tracing
-  (`adapters/observability.py`, `adapters/tracing.py`), silent unless an OTLP endpoint is
-  configured.
-- Clean Architecture layering (`domain` / `application` / `adapters` / `entrypoints`) enforced by
-  `scripts/validate_architecture.py` as part of the quality gate.
-- Multi-stage, uv-based, non-root Docker build.
+- OAuth 2.1 resource-server authentication for MCP `2026-07-28`, including RFC 9728 Protected
+  Resource Metadata and standards-shaped bearer challenges.
+- Microsoft Entra ID and generic OIDC token-verifier paths with exact issuer/audience validation,
+  JWKS resolution, caching, and algorithm/key checks.
+- Request-scoped `Principal` propagation, delegated/application identity classification, and
+  per-tool scope authorization with `403 insufficient_scope` step-up challenges.
+- Security audit events for authentication, authorization, transport rejection, scope step-up,
+  and outbound credential blocking.
+- Operational `GET /livez` and `GET /readyz` probes, production launcher, startup configuration
+  preflight, hardened container runtime guidance, and Kubernetes deployment baseline.
+- Executable compatibility matrices for Python 3.13/3.14, MCP SDK `2.0.0`/latest compatible 2.x,
+  Entra/generic OIDC, production HTTPS, and IPv4/IPv6 loopback development profiles.
+- A versioned cross-repository compatibility contract shared with `mcp-client-auth-template`.
+
+### Changed
+
+- Public package version is now `0.2.0`.
+- Supported Python range is `>=3.13,<3.15`; the CI matrix exercises Python 3.13 and 3.14.
+- Supported MCP Python SDK range is `>=2.0,<3`, with `2.0.0` as the tested support floor.
+- Streamable HTTP is configured for the stateless/sessionless MCP `2026-07-28` execution model.
+- Production configuration is fail-closed for insecure transport, placeholder identifiers, and
+  unsafe OIDC settings.
+
+### Security
+
+- OIDC discovery/JWKS networking rejects unsafe schemes, redirects, compression, oversized
+  responses, private/reserved destinations, mixed DNS answers, and bearer credential forwarding.
+- HTTP transport admission enforces Host/Origin, request framing, body/header, concurrency, and
+  method bounds.
+- Raw bearer tokens and full identity-provider claims are excluded from the application principal
+  and security audit surface.
+
+[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/brunovicco/mcp-server-auth-template/releases/tag/v0.2.0
