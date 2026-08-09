@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-09
+
+### Added
+
+- MCP OAuth Client Credentials extension advertisement for non-interactive generic OIDC clients.
+- Executable modern request-envelope validation for MCP `2026-07-28`.
+- Sessionless Streamable HTTP interoperability and protocol-version negotiation evidence.
+- Runtime scope step-up for protected MCP tools.
+- Client ID Metadata Document-first interoperability evidence.
+- ADRs covering CIMD, modern request envelopes, runtime scope step-up, and Client Credentials.
+
+### Changed
+
+- Public package version is now `0.3.0`.
+- The cross-repository contract now covers interactive and machine-to-machine authentication.
+- Compatibility documentation now distinguishes generic client credentials from Microsoft Entra
+  application identities.
+- Dynamic Client Registration remains only as backwards-compatible interoperability evidence.
+
+### Security
+
+- Extension negotiation never grants authorization by itself.
+- The server remains an OAuth resource server and does not issue tokens or persist client secrets.
+- Machine identities remain subject to verified issuer, audience, expiry, and scope validation.
+- Generic client identities are not promoted to Microsoft Entra application principals.
+- Invalid credentials, scope failures, protocol mismatches, and envelope mismatches fail closed.
+
 ## [0.2.0] - 2026-08-09
 
 ### Added
@@ -42,5 +69,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Raw bearer tokens and full identity-provider claims are excluded from the application principal
   and security audit surface.
 
-[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/brunovicco/mcp-server-auth-template/releases/tag/v0.3.0
 [0.2.0]: https://github.com/brunovicco/mcp-server-auth-template/releases/tag/v0.2.0

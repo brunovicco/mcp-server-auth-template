@@ -267,7 +267,7 @@ def build_server(
     """Construct the configured ``MCPServer``, ready to serve as an ASGI app."""
     settings = settings or Settings()  # values come from the environment
     runtime_status = runtime_status or RuntimeStatus()
-    configure_logging(service=settings.service_name, environment="local", version="0.1.0")
+    configure_logging(service=settings.service_name, environment="local", version="0.3.0")
 
     issuer_url = _resolve_issuer_url(settings)
     network_policy = _build_oidc_network_policy(settings, issuer_url)
