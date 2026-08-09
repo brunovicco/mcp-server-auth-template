@@ -11,6 +11,7 @@ from mcp_server_auth_template.application.tool_authorization import ToolPolicy
 from mcp_server_auth_template.domain.principal import Principal, PrincipalKind
 from mcp_server_auth_template.entrypoints.mcp_server import (
     _build_tool_authorizer,
+    _build_tracing_middleware,
     create_app,
 )
 from mcp_server_auth_template.entrypoints.settings import Settings
@@ -94,12 +95,13 @@ def test_create_app_orders_transport_admission_before_progressive_authorization(
 
     app = create_app()
 
-    middleware_names = [getattr(item.cls, "__name__", None) for item in app.user_middleware[:3]]
+    middleware_names = [getattr(item.cls, "__name__", None) for item in app.user_middleware[:4]]
     assert middleware_names == [
         HttpTransportAdmissionMiddleware.__name__,
+        _build_tracing_middleware.__name__,
         OperationalProbeMiddleware.__name__,
         ProgressiveAuthorizationMiddleware.__name__,
     ]
-    assert app.user_middleware[2].kwargs["resource_metadata_url"] == (
+    assert app.user_middleware[3].kwargs["resource_metadata_url"] == (
         "https://mcp.example.invalid/.well-known/oauth-protected-resource"
     )

@@ -30,8 +30,8 @@ jobs:
       - name: Verify lockfile is up to date
         run: uv lock --check
 
-      - name: Install dependencies, including observability tests
-        run: uv sync --frozen --all-groups --extra observability
+      - name: Install dependencies
+        run: uv sync --frozen --all-groups
 
       - name: Validate production preflight contract
         env:

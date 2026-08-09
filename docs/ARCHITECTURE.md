@@ -56,10 +56,10 @@ domain      -> no outer layer
 
 - Configuration: environment variables validated at startup.
 - Logging: structured events to stdout/stderr.
-- Tracing: the service-only OpenTelemetry adapter exports trace data over OTLP HTTP/protobuf only
-  when an endpoint is configured. It propagates W3C Trace Context, but not baggage, and keeps the
-  SDK lifecycle at the composition-root boundary. The separate Langfuse LLM observer remains an
-  opt-in adapter with its existing contract.
+- Tracing: `a2a-otel-kit` wraps the MCP Streamable HTTP ASGI boundary inside transport admission
+  and outside auth/tool dispatch. It exports metadata-only traces over OTLP HTTP/protobuf only
+  when `A2A_OTEL_ENABLED=true`, propagates W3C Trace Context but not baggage, and is shut down by
+  the MCP server lifespan. The separate Langfuse LLM observer remains opt-in.
 - Errors: infrastructure errors translated at adapters; external errors mapped at entrypoints.
 - Time: UTC internally with timezone-aware values.
 - Money: `Decimal` wrapped in a domain Value Object.

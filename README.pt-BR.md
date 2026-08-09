@@ -110,7 +110,7 @@ seguinte. Veja [Diagrams](docs/ARCHITECTURE.md#diagrams).
 
 ```bash
 uv lock --check
-uv sync --frozen --all-groups --extra observability
+uv sync --frozen --all-groups
 uv run pytest
 uv run python scripts/quality_gate.py
 ```

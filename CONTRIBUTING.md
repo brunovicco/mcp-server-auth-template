@@ -7,7 +7,7 @@ welcome; there's no formal process beyond what's below.
 
 ```bash
 uv lock --check
-uv sync --frozen --all-groups --extra observability
+uv sync --frozen --all-groups
 uv run python scripts/quality_gate.py
 ```
 

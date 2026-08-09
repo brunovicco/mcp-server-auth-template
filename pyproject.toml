@@ -9,6 +9,8 @@ dependencies = [
     "pydantic-settings>=2.8",
     "structlog>=25.1",
     "mcp>=2.0,<3",
+    # Metadata-only W3C tracing at the public MCP Streamable HTTP ASGI boundary.
+    "a2a-otel-kit[mcp]>=0.6,<0.7",
     "pyjwt[crypto]>=2.13",
     "httpx>=0.28",
     "cachetools>=5.5",
@@ -20,13 +22,6 @@ dependencies = [
 tracing = [
     "langfuse>=3.0",
 ]
-# Vendor-neutral application traces; disabled unless an OTLP endpoint is configured.
-observability = [
-    "opentelemetry-api>=1.36",
-    "opentelemetry-exporter-otlp-proto-http>=1.36",
-    "opentelemetry-sdk>=1.36",
-]
-
 [dependency-groups]
 dev = [
     "bandit[toml]>=1.8",
