@@ -23,13 +23,20 @@ o repositório companheiro,
 [`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template), para a
 metade cliente desse padrão.
 
+O servidor também anuncia a extensão draft
+`io.modelcontextprotocol/oauth-client-credentials`. O perfil determinístico do client companheiro
+prova um cliente máquina OIDC genérico pré-registrado com scopes vinculados ao recurso. Tokens
+app-only do Entra continuam sendo um contrato separado: o servidor classifica `idtyp=app` e mantém
+`roles` distintos de `scp` delegado, mas aquisição real de token Entra não é reivindicada pelo E2E
+local.
+
 ## Compatibilidade
 
 A release `v0.2.0` suporta Python **3.13 e 3.14**, MCP Python SDK **2.x**
 (`>=2.0,<3`) e o perfil de referência MCP **2026-07-28**. O CI exercita continuamente o piso do
 SDK (`2.0.0`) e o 2.x compatível mais recente, os dois providers de autenticação, HTTPS de
 produção, perfis locais IPv4/IPv6 explicitamente habilitados e o contrato versionado do par
-cliente/servidor.
+cliente/servidor. O par inclui CIMD/DCR interativo e client credentials OIDC genérico não interativo.
 
 Veja [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) para a política executável de suporte e seu
 escopo. Interoperabilidade ao vivo com IdPs específicos não é reivindicada pela matriz local
@@ -77,8 +84,12 @@ determinística.
    ```
 
 4. Duas tools de exemplo são registradas: `whoami` retorna a identidade carregada pelo token do
-   chamador (client ID, subject, scopes), e `health` é um diagnóstico de aplicação autenticado
-   para clientes MCP.
+   chamador (client ID, subject, scopes), enquanto `health` demonstra autorização progressiva ao
+   exigir o scope adicional `mcp:tools:health`. Um cliente compatível trata o desafio `403` anterior
+   ao dispatch reautorizando com a união dos scopes original e elevado.
+
+   `whoami` também aceita um token client-credentials genérico válido. Esse perfil prova client
+   ID/subject e scopes da máquina sem inferir app roles do Entra.
 
 Liveness/readiness operacionais são expostos separadamente como `GET /livez` e `GET /readyz` sem
 autenticação; veja `docs/OPERATIONS.md` para o contrato de deployment desses endpoints.

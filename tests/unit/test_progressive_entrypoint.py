@@ -8,6 +8,7 @@ from mcp_server_auth_template.adapters.progressive_auth_http import (
 )
 from mcp_server_auth_template.adapters.runtime_probes import OperationalProbeMiddleware
 from mcp_server_auth_template.application.tool_authorization import ToolPolicy
+from mcp_server_auth_template.domain.principal import Principal, PrincipalKind
 from mcp_server_auth_template.entrypoints.mcp_server import (
     _build_tool_authorizer,
     create_app,
@@ -16,6 +17,53 @@ from mcp_server_auth_template.entrypoints.settings import Settings
 
 _API_CLIENT_ID = "33333333-3333-3333-3333-333333333333"
 _APPLICATION_ID_URI = f"api://{_API_CLIENT_ID}"
+_HEALTH_SCOPE = "mcp:tools:health"
+
+
+def _principal(kind: PrincipalKind, *scopes: str) -> Principal:
+    return Principal(
+        client_id="client-123",
+        subject="subject-456",
+        issuer="https://as.example.invalid",
+        kind=kind,
+        scopes=frozenset(scopes),
+        roles=frozenset(),
+    )
+
+
+def test_generic_default_health_policy_requires_incremental_oauth_scope() -> None:
+    settings = Settings(
+        auth_provider="generic",
+        resource_server_url="https://mcp.example.invalid",
+        generic_issuer_url="https://as.example.invalid",
+        generic_audience="https://mcp.example.invalid",
+    )
+
+    authorizer = _build_tool_authorizer(settings)
+
+    assert authorizer.authorize("whoami", _principal(PrincipalKind.UNKNOWN)).allowed is True
+    health = authorizer.authorize("health", _principal(PrincipalKind.UNKNOWN, "mcp:tools:call"))
+    assert health.allowed is False
+    assert health.required_scopes == (_HEALTH_SCOPE,)
+
+
+def test_entra_default_health_policy_requires_delegated_qualified_scope() -> None:
+    settings = Settings(
+        auth_provider="entra",
+        resource_server_url="https://mcp.example.invalid",
+        entra_tenant_id="11111111-1111-1111-1111-111111111111",
+        entra_audience=_API_CLIENT_ID,
+        entra_application_id_uri=_APPLICATION_ID_URI,
+    )
+
+    authorizer = _build_tool_authorizer(settings)
+    required_scope = f"{_APPLICATION_ID_URI}/{_HEALTH_SCOPE}"
+
+    assert authorizer.authorize(
+        "health", _principal(PrincipalKind.DELEGATED, required_scope)
+    ).allowed
+    assert not authorizer.authorize("health", _principal(PrincipalKind.APPLICATION)).allowed
+    assert authorizer.required_scopes_for("health") == (required_scope,)
 
 
 def test_entra_tool_authorizer_qualifies_short_scope_policies() -> None:

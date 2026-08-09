@@ -33,6 +33,9 @@ from mcp_server_auth_template.adapters.http_transport_security import (
 )
 from mcp_server_auth_template.adapters.jwks_key_resolver import JwksKeyResolver
 from mcp_server_auth_template.adapters.mcp_tool_authorization import ToolAuthorizationMiddleware
+from mcp_server_auth_template.adapters.oauth_client_credentials_extension import (
+    OAuthClientCredentialsExtension,
+)
 from mcp_server_auth_template.adapters.oidc_discovery import OidcDiscoveryClient
 from mcp_server_auth_template.adapters.oidc_http_security import (
     OidcNetworkSecurityPolicy,
@@ -55,10 +58,7 @@ from mcp_server_auth_template.domain.scope_claims import qualify_scopes
 from mcp_server_auth_template.entrypoints.logging import configure_logging
 from mcp_server_auth_template.entrypoints.settings import Settings
 
-_TOOL_POLICIES = {
-    "whoami": ToolPolicy.authenticated(),
-    "health": ToolPolicy.authenticated(),
-}
+_HEALTH_SCOPE = "mcp:tools:health"
 _MCP_HTTP_PATH = "/mcp"
 _OPERATIONAL_PROBE_PATHS = frozenset({"/livez", "/readyz"})
 
@@ -112,7 +112,18 @@ def _build_tool_authorizer(
     into that same form.  Qualifying short policy scopes here keeps matching
     and progressive ``WWW-Authenticate`` challenges on one canonical value.
     """
-    policy_registry = _TOOL_POLICIES if policies is None else policies
+    if policies is None:
+        health_policy = (
+            ToolPolicy.delegated_scopes(_HEALTH_SCOPE)
+            if settings.auth_provider == "entra"
+            else ToolPolicy.oauth_scopes(_HEALTH_SCOPE)
+        )
+        policy_registry: Mapping[str, ToolPolicy] = {
+            "whoami": ToolPolicy.authenticated(),
+            "health": health_policy,
+        }
+    else:
+        policy_registry = policies
     if settings.auth_provider != "entra" or settings.entra_application_id_uri is None:
         return ToolAuthorizationService(policy_registry)
 
@@ -285,6 +296,7 @@ def build_server(
 
     server = MCPServer(
         name=settings.service_name,
+        extensions=[OAuthClientCredentialsExtension()],
         token_verifier=token_verifier,
         auth=AuthSettings(
             issuer_url=issuer_url,

@@ -12,6 +12,9 @@ from starlette.applications import Starlette
 
 from mcp_server_auth_template.adapters.entra_token_verifier import EntraTokenVerifier
 from mcp_server_auth_template.adapters.generic_oidc_token_verifier import GenericOidcTokenVerifier
+from mcp_server_auth_template.adapters.oauth_client_credentials_extension import (
+    OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID,
+)
 from mcp_server_auth_template.entrypoints.mcp_server import (
     _build_token_verifier,
     _health,
@@ -217,6 +220,7 @@ def test_build_server_wires_a_generic_resource_server(monkeypatch: pytest.Monkey
     assert server.name == "mcp-server-auth-template"
     assert server.settings.auth is not None
     assert str(server.settings.auth.issuer_url) == "https://as.example.invalid"
+    assert server._lowlevel_server.extensions == {OAUTH_CLIENT_CREDENTIALS_EXTENSION_ID: {}}
 
 
 @pytest.mark.integration

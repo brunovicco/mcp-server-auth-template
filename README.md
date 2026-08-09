@@ -23,12 +23,19 @@ applications; client registration itself remains an authorization-server concern
 [`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template), for the
 client-side half of this pattern.
 
+The server also advertises the draft `io.modelcontextprotocol/oauth-client-credentials` extension.
+The deterministic companion profile proves a pre-registered generic-OIDC machine client with
+resource-bound scopes. Entra app-only tokens remain a separate contract: the server classifies
+`idtyp=app` and keeps `roles` distinct from delegated `scp`, but live Entra token acquisition is
+not claimed by the local pair test.
+
 ## Compatibility
 
 Release `v0.2.0` supports Python **3.13 and 3.14**, MCP Python SDK **2.x**
 (`>=2.0,<3`), and the MCP **2026-07-28** reference profile. CI continuously exercises the SDK
 support floor (`2.0.0`) and the latest compatible 2.x, both auth providers, production HTTPS,
 explicit IPv4/IPv6 loopback development profiles, and the versioned client/server pair contract.
+The pair includes interactive CIMD/DCR and non-interactive generic-OIDC client credentials.
 
 See [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) for the executable support policy and its
 scope. Provider-specific live IdP interoperability is intentionally not claimed by the local
@@ -75,9 +82,13 @@ deterministic matrix.
      resource_metadata="https://mcp.example.invalid/.well-known/oauth-protected-resource"
    ```
 
-4. Two example tools are registered: `whoami` returns the identity carried by the
-   caller's token (client ID, subject, scopes), and `health` is an authenticated
-   application-level diagnostic for MCP callers.
+4. Two example tools are registered: `whoami` returns the identity carried by the caller's token
+   (client ID, subject, scopes), while `health` demonstrates progressive authorization by requiring
+   the additional `mcp:tools:health` scope. A conforming client handles its pre-dispatch `403`
+   challenge by reauthorizing with the union of the original and elevated scopes.
+
+   `whoami` also accepts a valid generic client-credentials token. The generic profile proves the
+   machine's client ID/subject and OAuth scopes without inferring Entra application roles.
 
 Operational liveness/readiness are exposed separately as unauthenticated `GET /livez` and
 `GET /readyz`; see `docs/OPERATIONS.md` for their deployment contract.
