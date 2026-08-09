@@ -15,9 +15,14 @@ Run locally with:
 
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from typing import cast
 from urllib.parse import urlsplit
 
 import httpx
+from a2a_otel_kit.adapters.mcp import ASGIApp as KitASGIApp
+from a2a_otel_kit.adapters.mcp import TracingASGIMiddleware
+from a2a_otel_kit.application.settings import ObservabilitySettings
+from a2a_otel_kit.entrypoints.observability import Observability
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import TokenVerifier
 from mcp.server.auth.routes import build_resource_metadata_url
@@ -25,6 +30,7 @@ from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
+from starlette.types import ASGIApp as StarletteASGIApp
 
 from mcp_server_auth_template.adapters.entra_token_verifier import EntraTokenVerifier
 from mcp_server_auth_template.adapters.generic_oidc_token_verifier import GenericOidcTokenVerifier
@@ -61,6 +67,26 @@ from mcp_server_auth_template.entrypoints.settings import Settings
 _HEALTH_SCOPE = "mcp:tools:health"
 _MCP_HTTP_PATH = "/mcp"
 _OPERATIONAL_PROBE_PATHS = frozenset({"/livez", "/readyz"})
+_SERVICE_VERSION = "0.3.0"
+
+
+def build_observability_settings(settings: Settings) -> ObservabilitySettings:
+    """Build the fixed service identity; exporter configuration comes from the environment."""
+    return ObservabilitySettings(
+        service_name=settings.service_name,
+        service_version=_SERVICE_VERSION,
+        environment=settings.app_env,
+    )
+
+
+def _build_tracing_middleware(
+    app: StarletteASGIApp,
+    *,
+    observability: Observability,
+) -> StarletteASGIApp:
+    """Bridge Starlette's nominal ASGI callable type to the kit's structural ASGI protocol."""
+    wrapped = TracingASGIMiddleware.wrap(cast(KitASGIApp, app), observability)
+    return cast(StarletteASGIApp, wrapped)
 
 
 def _deduplicate(values: list[str]) -> list[str]:
@@ -263,11 +289,16 @@ def build_server(
     settings: Settings | None = None,
     *,
     runtime_status: RuntimeStatus | None = None,
+    observability: Observability | None = None,
 ) -> MCPServer:
     """Construct the configured ``MCPServer``, ready to serve as an ASGI app."""
     settings = settings or Settings()  # values come from the environment
     runtime_status = runtime_status or RuntimeStatus()
-    configure_logging(service=settings.service_name, environment="local", version="0.3.0")
+    configure_logging(
+        service=settings.service_name,
+        environment=settings.app_env,
+        version=_SERVICE_VERSION,
+    )
 
     issuer_url = _resolve_issuer_url(settings)
     network_policy = _build_oidc_network_policy(settings, issuer_url)
@@ -292,7 +323,11 @@ def build_server(
             yield None
         finally:
             runtime_status.mark_not_ready()
-            await http_client.aclose()
+            try:
+                await http_client.aclose()
+            finally:
+                if observability is not None:
+                    observability.shutdown()
 
     server = MCPServer(
         name=settings.service_name,
@@ -325,6 +360,7 @@ def _build_streamable_http_app(
     settings: Settings,
     *,
     runtime_status: RuntimeStatus | None = None,
+    observability: Observability | None = None,
 ) -> Starlette:
     """Build the bounded, stateless Streamable HTTP ASGI surface."""
     transport_security = _build_transport_security(settings)
@@ -346,6 +382,10 @@ def _build_streamable_http_app(
             OperationalProbeMiddleware,
             runtime_status=runtime_status,
         )
+    if observability is not None:
+        # Admission remains outermost. Tracing then continues W3C context before auth/tool
+        # dispatch while recording no request body, credentials, MCP arguments, or results.
+        app.add_middleware(_build_tracing_middleware, observability=observability)
     # Starlette inserts newly-added middleware at the outside of the stack.
     # Add admission last so Host/Origin/envelope checks run before auth.
     app.add_middleware(
@@ -371,5 +411,19 @@ def create_app() -> Starlette:
     """
     settings = Settings()
     runtime_status = RuntimeStatus()
-    server = build_server(settings, runtime_status=runtime_status)
-    return _build_streamable_http_app(server, settings, runtime_status=runtime_status)
+    observability = Observability.configure(build_observability_settings(settings))
+    try:
+        server = build_server(
+            settings,
+            runtime_status=runtime_status,
+            observability=observability,
+        )
+        return _build_streamable_http_app(
+            server,
+            settings,
+            runtime_status=runtime_status,
+            observability=observability,
+        )
+    except BaseException:
+        observability.shutdown()
+        raise

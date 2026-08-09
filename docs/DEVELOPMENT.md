@@ -3,14 +3,13 @@
 ## Setup
 
 ```bash
-uv sync --frozen --all-groups --extra observability
+uv sync --frozen --all-groups
 ```
 
-The `observability` extra installs the optional OpenTelemetry runtime; without it,
-`tests/unit/test_observability.py` and `tests/unit/test_logging.py` skip via `pytest.importorskip`
-and project-wide coverage falls under the required 80%. CI always installs it (see
-`.github/workflows/quality.yml`) — match that locally. Its tests use in-memory exporters or fakes;
-do not point development or CI checks at a real collector.
+`a2a-otel-kit[mcp]` is a core dependency because the ASGI entrypoint always composes its
+metadata-only tracing middleware. Export remains network-silent unless `A2A_OTEL_ENABLED=true`
+and an OTLP endpoint are configured. Tests use disabled or in-memory telemetry and never require a
+real collector.
 
 ## Run checks
 

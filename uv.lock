@@ -7,6 +7,28 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "a2a-otel-kit"
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-sdk" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "structlog" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ac/a3/326db3bdb7f3c150cd2a693d5882ef0c2b4ed96f4440ea1463d99fd04e6d/a2a_otel_kit-0.6.0.tar.gz", hash = "sha256:6786a191e53836856b7ca7542a07065af6e2d685f1c5508aa9ad95811c44562a", size = 84288, upload-time = "2026-08-09T20:28:04.461Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b9/78/735aaa570f4142fac714764008bc980b9ed1789683be1db6d02124d965cc/a2a_otel_kit-0.6.0-py3-none-any.whl", hash = "sha256:0389a944afab83384090b56cbc0a2dbdcb64946e6282f163aadc7c5e7b147720", size = 34211, upload-time = "2026-08-09T20:28:03.044Z" },
+]
+
+[package.optional-dependencies]
+mcp = [
+    { name = "mcp" },
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -702,6 +724,7 @@ name = "mcp-server-auth-template"
 version = "0.3.0"
 source = { editable = "." }
 dependencies = [
+    { name = "a2a-otel-kit", extra = ["mcp"] },
     { name = "cachetools" },
     { name = "httpx" },
     { name = "mcp" },
@@ -713,11 +736,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-observability = [
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-otlp-proto-http" },
-    { name = "opentelemetry-sdk" },
-]
 tracing = [
     { name = "langfuse" },
 ]
@@ -737,20 +755,18 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "a2a-otel-kit", extras = ["mcp"], specifier = ">=0.6,<0.7" },
     { name = "cachetools", specifier = ">=5.5" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "langfuse", marker = "extra == 'tracing'", specifier = ">=3.0" },
     { name = "mcp", specifier = ">=2.0,<3" },
-    { name = "opentelemetry-api", marker = "extra == 'observability'", specifier = ">=1.36" },
-    { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'observability'", specifier = ">=1.36" },
-    { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.36" },
     { name = "pydantic", specifier = ">=2.11" },
     { name = "pydantic-settings", specifier = ">=2.8" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.13" },
     { name = "structlog", specifier = ">=25.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
 ]
-provides-extras = ["tracing", "observability"]
+provides-extras = ["tracing"]
 
 [package.metadata.requires-dev]
 dev = [

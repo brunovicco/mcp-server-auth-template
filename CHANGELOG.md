@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the disconnected, hand-rolled OpenTelemetry lifecycle with the released
+  `a2a-otel-kit[mcp]>=0.6,<0.7` ASGI integration at the MCP Streamable HTTP boundary.
+- Made metadata-only W3C tracing a network-silent core capability and removed the separate
+  `observability` install extra.
+
+### Security
+
+- Kept hardened HTTP admission outside tracing and preserved the rule that spans never capture
+  authorization data, MCP arguments/results, request bodies, arbitrary headers, URLs, or
+  exception text.
+
 ## [0.3.0] - 2026-08-09
 
 ### Added

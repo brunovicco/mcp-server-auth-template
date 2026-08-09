@@ -41,7 +41,7 @@ jobs:
 
       - name: Install locked project dependencies
         run: >
-          uv sync --frozen --all-groups --extra observability
+          uv sync --frozen --all-groups
           --python "${{ matrix.python }}"
 
       - name: Select MCP SDK compatibility profile
@@ -89,7 +89,7 @@ jobs:
         run: uv python install "3.13"
 
       - name: Install locked project dependencies
-        run: uv sync --frozen --all-groups --extra observability --python "3.13"
+        run: uv sync --frozen --all-groups --python "3.13"
 
       - name: Verify auth and transport compatibility cell
         run: |

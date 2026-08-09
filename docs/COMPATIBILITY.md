@@ -38,7 +38,7 @@ weekly. The scheduled run detects drift caused by newly published compatible MCP
 Support floor:
 
 ```bash
-uv sync --frozen --all-groups --extra observability --python 3.13
+uv sync --frozen --all-groups --python 3.13
 uv pip install --python .venv/bin/python "mcp==2.0.0"
 uv pip check
 .venv/bin/python scripts/compatibility_contract.py --python 3.13 --mcp-profile minimum
@@ -48,7 +48,7 @@ uv pip check
 Moving 2.x edge:
 
 ```bash
-uv sync --frozen --all-groups --extra observability --python 3.14
+uv sync --frozen --all-groups --python 3.14
 uv pip install --python .venv/bin/python --upgrade "mcp>=2.0,<3"
 uv pip check
 .venv/bin/python scripts/compatibility_contract.py --python 3.14 --mcp-profile latest

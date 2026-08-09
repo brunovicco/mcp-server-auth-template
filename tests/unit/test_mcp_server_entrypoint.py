@@ -17,9 +17,11 @@ from mcp_server_auth_template.adapters.oauth_client_credentials_extension import
 )
 from mcp_server_auth_template.entrypoints.mcp_server import (
     _build_token_verifier,
+    _build_tracing_middleware,
     _health,
     _resolve_issuer_url,
     _whoami,
+    build_observability_settings,
     build_server,
     create_app,
 )
@@ -196,6 +198,23 @@ def test_health_reports_ok() -> None:
     assert _health() == {"status": "ok"}
 
 
+def test_build_observability_settings_is_disabled_by_default() -> None:
+    settings = Settings(
+        auth_provider="generic",
+        resource_server_url="https://mcp.example.invalid",
+        generic_issuer_url="https://as.example.invalid",
+        generic_audience="https://mcp.example.invalid",
+        app_env="test",
+    )
+
+    observability = build_observability_settings(settings)
+
+    assert observability.service_name == "mcp-server-auth-template"
+    assert observability.service_version == "0.3.0"
+    assert observability.environment == "test"
+    assert observability.enabled is False
+
+
 @pytest.mark.integration
 def test_build_server_wires_an_entra_resource_server(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_env(monkeypatch, _ENTRA_ENV)
@@ -237,4 +256,8 @@ async def test_build_server_registers_the_example_tools(monkeypatch: pytest.Monk
 def test_create_app_returns_a_starlette_asgi_app(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_env(monkeypatch, _GENERIC_ENV)
 
-    assert isinstance(create_app(), Starlette)
+    app = create_app()
+
+    assert isinstance(app, Starlette)
+    middleware_names = [getattr(item.cls, "__name__", None) for item in app.user_middleware]
+    assert _build_tracing_middleware.__name__ in middleware_names

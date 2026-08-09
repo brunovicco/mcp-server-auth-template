@@ -2,45 +2,34 @@
 
 ## Vendor-neutral application tracing
 
-The service profile also provides a separate OpenTelemetry trace foundation in
-`src/mcp_server_auth_template/adapters/observability.py`. Install it with
-`uv sync --extra observability`. It uses the OpenTelemetry API/SDK, `BatchSpanProcessor`, and the
-OTLP HTTP/protobuf exporter. This does not replace or alter the `LlmCallObserver` contract or the
-existing `tracing` extra described below.
+The server uses `a2a-otel-kit[mcp]>=0.6,<0.7` as a core dependency. The ASGI composition root
+configures one `Observability` facade and inserts `TracingASGIMiddleware` inside hardened HTTP
+admission and outside authentication/tool dispatch. Every admitted MCP Streamable HTTP request
+continues W3C `traceparent`/`tracestate` and creates a fixed `mcp.server.streamable_http` span.
 
-The lifecycle is disabled when `OTEL_SDK_DISABLED=true` or neither
-`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` nor `OTEL_EXPORTER_OTLP_ENDPOINT` is set. In either case it
-does not construct an exporter, start a worker, or attempt a network connection. When enabled,
-instantiate `TelemetryLifecycle` at process startup, use its returned `tracer`, and call its
-bounded `force_flush()` and `shutdown()` methods during graceful termination. Exporter setup,
-flush, shutdown, and asynchronous export failures are isolated from business operations.
+Observability is disabled by default. Unless `A2A_OTEL_ENABLED=true` and
+`A2A_OTEL_OTLP_ENDPOINT` are both configured, no exporter, worker, or telemetry network connection
+is created. The MCP server lifespan owns `observability.shutdown()` after readiness is cleared and
+the OIDC HTTP client is closed. This does not alter the separate `LlmCallObserver` or its optional
+`tracing` extra described below.
 
-Resource attributes are limited to `service.name`, `service.version`, and
-`deployment.environment.name`. `OTEL_SERVICE_NAME` and safe values for those keys in
-`OTEL_RESOURCE_ATTRIBUTES` are supported; all other resource keys are discarded. The custom span
-attribute helper likewise accepts only a small set of non-content keys and bounded scalar values.
-The lifecycle exposes `SafeTracer` and `SafeSpan` wrappers that apply the same policy to attributes
-provided during span creation or mutation. Unsafe operation and event names are replaced with
-stable redacted names; status descriptions and exception messages are not recorded. Never put
-prompts, responses, credentials, authorization headers, personal data, arbitrary URLs, tool
-output, or production payloads into spans.
-
-Use `inject_trace_context()` and `extract_trace_context()` at transport boundaries. They use only
-W3C `traceparent`/`tracestate`; baggage is intentionally not propagated. Structured logs derive
-`trace_id` and `span_id` from a valid current span automatically and omit both otherwise.
+The adapter never reads request or response bodies and never records authorization data, MCP
+arguments/results, arbitrary headers, URLs, baggage, or exception text. Trace context is only a
+correlation mechanism; it does not participate in authentication or authorization. Structured
+logs derive `trace_id` and `span_id` only from a valid current span.
 
 ### OpenTelemetry configuration
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `OTEL_SDK_DISABLED` | no | `true` forces a network-silent no-op |
-| `OTEL_SERVICE_NAME` | no | Overrides the configured service name |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | one endpoint | Base OTLP HTTP endpoint |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | one endpoint | Trace-specific OTLP HTTP endpoint; takes precedence in the exporter |
-| `OTEL_RESOURCE_ATTRIBUTES` | no | Only the three approved resource keys are accepted |
+| `A2A_OTEL_ENABLED` | no (default `false`) | Enables tracing and OTLP export |
+| `A2A_OTEL_OTLP_ENDPOINT` | required when enabled | Complete OTLP HTTP traces endpoint |
+| `A2A_OTEL_OTLP_TIMEOUT_SECONDS` | no (default `10.0`) | Export timeout |
+| `A2A_OTEL_LOG_LEVEL` | no (default `INFO`) | Logging level used during facade setup |
+| `A2A_OTEL_LOG_FORMAT` | no (default `json`) | `json` or `console` |
 
-Tests use in-memory exporters and invalid placeholder endpoint names; they never require a
-collector, network access, credentials, or an external service.
+Tests keep tracing disabled or use in-memory exporters; they never require a collector, network
+access, credentials, or an external service.
 
 ## Langfuse LLM tracing
 
