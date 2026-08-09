@@ -67,7 +67,7 @@ from mcp_server_auth_template.entrypoints.settings import Settings
 _HEALTH_SCOPE = "mcp:tools:health"
 _MCP_HTTP_PATH = "/mcp"
 _OPERATIONAL_PROBE_PATHS = frozenset({"/livez", "/readyz"})
-_SERVICE_VERSION = "0.3.0"
+_SERVICE_VERSION = "0.4.0"
 
 
 def build_observability_settings(settings: Settings) -> ObservabilitySettings:
