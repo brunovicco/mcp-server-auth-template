@@ -1,7 +1,9 @@
 # mcp-server-auth-template
 
 [![quality](https://github.com/brunovicco/mcp-server-auth-template/actions/workflows/quality.yml/badge.svg)](https://github.com/brunovicco/mcp-server-auth-template/actions/workflows/quality.yml)
-![python](https://img.shields.io/badge/python-3.13-blue.svg)
+[![compatibility](https://github.com/brunovicco/mcp-server-auth-template/actions/workflows/compatibility.yml/badge.svg)](https://github.com/brunovicco/mcp-server-auth-template/actions/workflows/compatibility.yml)
+[![release](https://img.shields.io/github/v/release/brunovicco/mcp-server-auth-template)](https://github.com/brunovicco/mcp-server-auth-template/releases)
+![python](https://img.shields.io/badge/python-3.13%20%7C%203.14-blue.svg)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 *[Read in English](README.md)*
@@ -10,16 +12,28 @@ Um template reutilizável de servidor MCP que atua como **resource server** OAut
 authorization server - contra o Microsoft Entra ID ou qualquer authorization server OIDC compatível
 com o padrão (Auth0, Keycloak, WorkOS AuthKit, ...). Alvo: especificação MCP **2026-07-28**.
 
-A especificação de autorização do MCP 2026-07-28 modela todo servidor MCP remoto dessa forma: ele
-verifica bearer tokens emitidos em outro lugar, nunca os emite. O Entra ID também não consegue
-atuar como um authorization server MCP completo para clientes arbitrários (sem Dynamic Client
-Registration, sem Client ID Metadata Documents), então uma integração real precisa de um adapter de
-qualquer forma. Este template é esse adapter, construído uma vez, corretamente, para que um novo
-servidor MCP não precise redescobrir cache de JWKS, validação de issuer/audience, e o formato de
-claims dividido (`scp`/`roles`) do Entra do zero. Veja
-`docs/adr/0002-oauth21-resource-server.md` para o raciocínio completo, e o repositório companheiro,
+O modelo de autorização do MCP 2026-07-28 mantém um servidor MCP remoto na fronteira de OAuth
+resource server: ele publica Protected Resource Metadata e valida access tokens emitidos por um
+authorization server externo. Este template implementa essa fronteira para Entra ID e OIDC
+genérico, incluindo validação de issuer/audience, obtenção endurecida de JWKS, enforcement de
+scopes e os formatos separados de claims delegadas/de aplicação do Entra. Deployments com Entra
+usam aplicações cliente pré-registradas; o registro do cliente continua sendo responsabilidade do
+authorization server. Veja `docs/adr/0002-oauth21-resource-server.md` para o raciocínio completo e
+o repositório companheiro,
 [`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template), para a
 metade cliente desse padrão.
+
+## Compatibilidade
+
+A release `v0.2.0` suporta Python **3.13 e 3.14**, MCP Python SDK **2.x**
+(`>=2.0,<3`) e o perfil de referência MCP **2026-07-28**. O CI exercita continuamente o piso do
+SDK (`2.0.0`) e o 2.x compatível mais recente, os dois providers de autenticação, HTTPS de
+produção, perfis locais IPv4/IPv6 explicitamente habilitados e o contrato versionado do par
+cliente/servidor.
+
+Veja [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) para a política executável de suporte e seu
+escopo. Interoperabilidade ao vivo com IdPs específicos não é reivindicada pela matriz local
+determinística.
 
 ## Início rápido (auth)
 
