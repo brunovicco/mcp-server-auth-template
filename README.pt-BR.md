@@ -133,7 +133,9 @@ Esta é uma implementação de referência transparente, não uma certificação
 ## Evidências de engenharia
 
 - quality gate determinístico com lint, format, Mypy estrito, arquitetura, testes, cobertura,
-  Bandit e auditoria de dependências;
+  Bandit, auditoria de dependências e baseline executável de confiança da supply chain;
+- GitHub Actions fixadas por SHA, permissões read-only, updates semanais controlados e revisão de
+  dependências/licenças nos pull requests;
 - Python 3.13/3.14 contra MCP SDK 2.0.0 e a versão 2.x compatível mais recente;
 - Entra/OIDC genérico em HTTPS de produção e perfis locais IPv4/IPv6 explicitamente habilitados;
 - contrato canônico entre repositórios e suíte OAuth/MCP E2E real de 12 cenários mantida pelo
@@ -157,6 +159,7 @@ e do dispatch das tools. Veja [Observabilidade de aplicação e LLM](docs/LLM_OB
 | [Compatibilidade](docs/COMPATIBILITY.md) | Versões suportadas e contrato executável cliente/servidor |
 | [Operações](docs/OPERATIONS.md) | Preflight, probes, shutdown, containers e Kubernetes |
 | [Privacidade](docs/PRIVACY.md) | Inventário de dados, retenção, logs, tracing e processadores externos |
+| [Supply chain](docs/SUPPLY_CHAIN.pt-BR.md) | Política de dependências, confiança no CI, ameaças e exceções |
 | [Observabilidade](docs/LLM_OBSERVABILITY.md) | Configuração do OpenTelemetry e do Langfuse opcional |
 | [Desenvolvimento](docs/DEVELOPMENT.md) | Ambiente local, checks e workflow do container |
 | [Decisões de arquitetura](docs/adr/) | Justificativas e trade-offs das decisões materiais |

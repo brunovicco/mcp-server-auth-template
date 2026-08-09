@@ -131,7 +131,9 @@ This is a transparent reference implementation, not a security certification. Re
 ## Engineering evidence
 
 - deterministic quality gate covering lint, format, strict Mypy, architecture, tests, coverage,
-  Bandit, and dependency audit;
+  Bandit, dependency audit, and an executable supply-chain trust baseline;
+- SHA-pinned GitHub Actions, read-only workflow permissions, weekly controlled updates, and
+  pull-request dependency/license review;
 - Python 3.13/3.14 against MCP SDK 2.0.0 and the latest compatible 2.x;
 - Entra/generic OIDC across production HTTPS and explicit IPv4/IPv6 loopback profiles;
 - canonical cross-repository contract plus a real 12-scenario OAuth/MCP E2E suite owned by the
@@ -155,6 +157,7 @@ dispatch. See [LLM and application observability](docs/LLM_OBSERVABILITY.md).
 | [Compatibility](docs/COMPATIBILITY.md) | Supported versions and executable client/server contract |
 | [Operations](docs/OPERATIONS.md) | Preflight, probes, shutdown, containers, and Kubernetes |
 | [Privacy](docs/PRIVACY.md) | Data inventory, retention, logging, tracing, and external processors |
+| [Supply chain](docs/SUPPLY_CHAIN.md) | Dependency policy, CI trust boundary, threats, and exceptions |
 | [Observability](docs/LLM_OBSERVABILITY.md) | OpenTelemetry and optional Langfuse configuration |
 | [Development](docs/DEVELOPMENT.md) | Local environment, checks, and container workflow |
 | [Architecture decisions](docs/adr/) | Rationale and trade-offs behind material decisions |
