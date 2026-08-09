@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   quality:
@@ -32,5 +33,106 @@ jobs:
       - name: Install dependencies, including observability tests
         run: uv sync --frozen --all-groups --extra observability
 
+      - name: Validate production preflight contract
+        env:
+          APP_ENV: production
+          MCP_SERVER_RESOURCE_SERVER_URL: https://mcp.acme.corp
+          MCP_SERVER_AUTH_PROVIDER: generic
+          MCP_SERVER_GENERIC_ISSUER_URL: https://identity.acme.corp
+          MCP_SERVER_GENERIC_AUDIENCE: mcp-production-audience
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run python -m mcp_server_auth_template.entrypoints.preflight --json \
+            | uv run python -c 'import json, sys; assert json.load(sys.stdin)["status"] == "ok"'
+
       - name: Project quality gate
         run: uv run python scripts/quality_gate.py
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Build production image
+        run: docker build --tag mcp-server-auth-template:ci .
+
+      - name: Smoke hardened runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          container_id="$(docker run --detach \
+              --read-only \
+              --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+              --cap-drop=ALL \
+              --security-opt no-new-privileges:true \
+              --env APP_ENV=production \
+              --env MCP_SERVER_RESOURCE_SERVER_URL=https://mcp.acme.corp \
+              --env MCP_SERVER_AUTH_PROVIDER=generic \
+              --env MCP_SERVER_GENERIC_ISSUER_URL=https://identity.acme.corp \
+              --env MCP_SERVER_GENERIC_AUDIENCE=mcp-production-audience \
+              mcp-server-auth-template:ci)"
+          trap 'docker logs "$container_id" || true; docker rm -f "$container_id" >/dev/null 2>&1 || true' EXIT
+
+          health="starting"
+          for _ in $(seq 1 30); do
+            state="$(docker inspect --format '{{.State.Status}}' "$container_id")"
+            if [[ "$state" != "running" ]]; then
+              echo "container exited before becoming healthy"
+              exit 1
+            fi
+
+            health="$(docker inspect --format '{{.State.Health.Status}}' "$container_id")"
+            if [[ "$health" == "healthy" ]]; then
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "$health" != "healthy" ]]; then
+            echo "container did not become healthy"
+            exit 1
+          fi
+
+          docker exec -i "$container_id" python - <<'PY'
+          import urllib.request
+
+          opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+          with opener.open("http://127.0.0.1:8000/readyz", timeout=2) as response:
+              assert response.status == 200
+          PY
+
+          uid="$(docker exec "$container_id" id -u)"
+          if [[ "$uid" == "0" ]]; then
+            echo "container unexpectedly runs as root"
+            exit 1
+          fi
+
+  kubernetes-manifests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Authenticate to GHCR
+        shell: bash
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Validate Kubernetes resource schemas
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --volume "$PWD:/work:ro" \
+            ghcr.io/yannh/kubeconform:v0.8.0 \
+            -strict \
+            -summary \
+            -kubernetes-version 1.36.0 \
+            -ignore-filename-pattern '(^|/)kustomization\.yaml$' \
+            /work/deploy/kubernetes

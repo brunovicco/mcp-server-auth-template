@@ -31,6 +31,14 @@ client-side half of this pattern.
    uv run uvicorn mcp_server_auth_template.entrypoints.mcp_server:create_app --factory --reload
    ```
 
+   For production-style execution, use the repository launcher instead:
+
+   ```bash
+   uv run python -m mcp_server_auth_template.entrypoints.serve
+   ```
+
+   See `docs/OPERATIONS.md` for probes, shutdown, container, and Kubernetes guidance.
+
 3. Protected Resource Metadata is served automatically at
    `/.well-known/oauth-protected-resource` - point an MCP client at
    `http://localhost:8000/mcp` and it will discover the configured authorization
@@ -55,8 +63,11 @@ client-side half of this pattern.
    ```
 
 4. Two example tools are registered: `whoami` returns the identity carried by the
-   caller's token (client ID, subject, scopes), and `health` is a liveness check
-   for an already-authenticated caller.
+   caller's token (client ID, subject, scopes), and `health` is an authenticated
+   application-level diagnostic for MCP callers.
+
+Operational liveness/readiness are exposed separately as unauthenticated `GET /livez` and
+`GET /readyz`; see `docs/OPERATIONS.md` for their deployment contract.
 
 Swap `MCP_SERVER_AUTH_PROVIDER` between `entra` and `generic` to switch adapters -
 no other code changes. See `src/mcp_server_auth_template/adapters/` for the two

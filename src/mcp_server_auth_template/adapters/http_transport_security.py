@@ -48,6 +48,7 @@ class HttpTransportAdmissionMiddleware:
         max_header_count: int,
         max_header_bytes: int,
         max_concurrent_requests: int,
+        operational_paths: frozenset[str] | None = None,
     ) -> None:
         """Create a bounded, fail-closed admission boundary."""
         self._app = app
@@ -56,6 +57,7 @@ class HttpTransportAdmissionMiddleware:
         self._max_header_count = max_header_count
         self._max_header_bytes = max_header_bytes
         self._max_concurrent_requests = max_concurrent_requests
+        self._operational_paths = operational_paths or frozenset()
         self._in_flight = 0
         self._in_flight_lock = Lock()
 
@@ -68,6 +70,11 @@ class HttpTransportAdmissionMiddleware:
         rejection = self._validate_envelope(scope)
         if rejection is not None:
             await rejection(scope, receive, send)
+            return
+
+        if scope["path"] in self._operational_paths:
+            # Keep envelope budgets, but probes must not depend on public Host/Origin or auth load.
+            await self._app(scope, receive, send)
             return
 
         request = Request(scope, receive)

@@ -10,7 +10,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, Field, model_validator
+from pydantic import AliasChoices, AnyHttpUrl, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from mcp_server_auth_template.domain.scope_claims import qualify_scopes
@@ -19,9 +19,27 @@ from mcp_server_auth_template.domain.scope_claims import qualify_scopes
 class Settings(BaseSettings):
     """Runtime configuration for the MCP resource server."""
 
-    model_config = SettingsConfigDict(env_prefix="MCP_SERVER_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="MCP_SERVER_",
+        env_file=".env",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     service_name: str = "mcp-server-auth-template"
+    app_env: Literal["development", "test", "staging", "production"] = Field(
+        default="development",
+        validation_alias=AliasChoices("APP_ENV", "MCP_SERVER_APP_ENV"),
+    )
+    runtime_host: str = Field(
+        default_factory=lambda: str(ip_address(0)), min_length=1, max_length=253
+    )
+    runtime_port: int = Field(default=8000, ge=1, le=65535)
+    runtime_workers: int = Field(default=1, ge=1, le=32)
+    runtime_backlog: int = Field(default=2048, ge=1, le=65535)
+    runtime_keep_alive_seconds: int = Field(default=5, ge=1, le=120)
+    runtime_graceful_shutdown_seconds: int = Field(default=30, ge=1, le=300)
+
     resource_server_url: AnyHttpUrl
     required_scopes: list[str] = []
 
@@ -55,6 +73,12 @@ class Settings(BaseSettings):
         if self.auth_provider == "entra" and self.entra_application_id_uri:
             return qualify_scopes(self.required_scopes, self.entra_application_id_uri)
         return self.required_scopes
+
+    def _validate_runtime_settings(self) -> None:
+        if self.runtime_host.strip() != self.runtime_host or any(
+            ord(ch) < 0x21 for ch in self.runtime_host
+        ):
+            raise ValueError("runtime_host must be a non-empty visible string without whitespace")
 
     def _validate_resource_server_transport_url(self) -> None:
         parsed = urlsplit(str(self.resource_server_url))
@@ -129,8 +153,102 @@ class Settings(BaseSettings):
             ):
                 raise ValueError("transport_allowed_origins entries must be exact http(s) origins")
 
+    @staticmethod
+    def _is_placeholder_hostname(hostname: str | None) -> bool:
+        if hostname is None:
+            return True
+        normalized = hostname.rstrip(".").lower()
+        if normalized == "localhost" or normalized.endswith((".localhost", ".invalid", ".test")):
+            return True
+        return any(
+            normalized == suffix or normalized.endswith(f".{suffix}")
+            for suffix in ("example.com", "example.net", "example.org")
+        )
+
+    def _validate_production_profile(self) -> None:
+        if self.app_env != "production":
+            return
+
+        resource = urlsplit(str(self.resource_server_url))
+        if resource.scheme != "https":
+            raise ValueError("production requires an HTTPS resource_server_url")
+        if self._is_placeholder_hostname(resource.hostname):
+            raise ValueError("production resource_server_url must not use a placeholder hostname")
+        if self.oidc_allow_insecure_loopback:
+            raise ValueError("production forbids oidc_allow_insecure_loopback=true")
+
+        for origin in self.transport_allowed_origins:
+            parsed = urlsplit(origin)
+            if parsed.scheme != "https":
+                raise ValueError("production transport_allowed_origins must use HTTPS")
+            if self._is_placeholder_hostname(parsed.hostname):
+                raise ValueError(
+                    "production transport_allowed_origins must not use placeholder hostnames"
+                )
+
+        zero_uuid = "00000000-0000-0000-0000-000000000000"
+        if self.auth_provider == "entra":
+            if self.entra_tenant_id == zero_uuid:
+                raise ValueError("production entra_tenant_id must not use the all-zero placeholder")
+            for value in (self.entra_audience, self.entra_application_id_uri):
+                if value is not None and zero_uuid in value.lower():
+                    raise ValueError(
+                        "production Entra identifiers must not use all-zero placeholders"
+                    )
+            return
+
+        issuer = urlsplit(self.generic_issuer_url or "")
+        try:
+            _ = issuer.port
+        except ValueError as exc:
+            raise ValueError("production generic_issuer_url contains an invalid port") from exc
+        if (
+            issuer.scheme != "https"
+            or issuer.hostname is None
+            or issuer.username is not None
+            or issuer.password is not None
+            or issuer.query
+            or issuer.fragment
+        ):
+            raise ValueError(
+                "production generic_issuer_url must be an absolute HTTPS issuer "
+                "without credentials, query, or fragment"
+            )
+        if self._is_placeholder_hostname(issuer.hostname):
+            raise ValueError("production generic_issuer_url must not use a placeholder hostname")
+
+        audience = urlsplit(self.generic_audience or "")
+        if audience.hostname is not None and self._is_placeholder_hostname(audience.hostname):
+            raise ValueError("production generic_audience must not use a placeholder hostname")
+
+        for origin in self.generic_jwks_allowed_origins:
+            parsed = urlsplit(origin)
+            try:
+                _ = parsed.port
+            except ValueError as exc:
+                raise ValueError(
+                    "production generic_jwks_allowed_origins contains an invalid port"
+                ) from exc
+            if (
+                parsed.scheme != "https"
+                or parsed.hostname is None
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    "production generic_jwks_allowed_origins entries must be exact HTTPS origins"
+                )
+            if self._is_placeholder_hostname(parsed.hostname):
+                raise ValueError(
+                    "production generic_jwks_allowed_origins must not use placeholder hostnames"
+                )
+
     @model_validator(mode="after")
     def _require_matching_provider_fields(self) -> "Settings":
+        self._validate_runtime_settings()
         self._validate_resource_server_transport_url()
         self._validate_transport_allowlists()
         if self.auth_provider == "entra":
@@ -161,4 +279,5 @@ class Settings(BaseSettings):
             ]
         if missing:
             raise ValueError(f"auth_provider={self.auth_provider!r} requires: {', '.join(missing)}")
+        self._validate_production_profile()
         return self
