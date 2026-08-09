@@ -6,6 +6,7 @@ from mcp_server_auth_template.adapters.http_transport_security import (
 from mcp_server_auth_template.adapters.progressive_auth_http import (
     ProgressiveAuthorizationMiddleware,
 )
+from mcp_server_auth_template.adapters.runtime_probes import OperationalProbeMiddleware
 from mcp_server_auth_template.application.tool_authorization import ToolPolicy
 from mcp_server_auth_template.entrypoints.mcp_server import (
     _build_tool_authorizer,
@@ -45,11 +46,12 @@ def test_create_app_orders_transport_admission_before_progressive_authorization(
 
     app = create_app()
 
-    middleware_names = [getattr(item.cls, "__name__", None) for item in app.user_middleware[:2]]
+    middleware_names = [getattr(item.cls, "__name__", None) for item in app.user_middleware[:3]]
     assert middleware_names == [
         HttpTransportAdmissionMiddleware.__name__,
+        OperationalProbeMiddleware.__name__,
         ProgressiveAuthorizationMiddleware.__name__,
     ]
-    assert app.user_middleware[1].kwargs["resource_metadata_url"] == (
+    assert app.user_middleware[2].kwargs["resource_metadata_url"] == (
         "https://mcp.example.invalid/.well-known/oauth-protected-resource"
     )

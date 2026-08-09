@@ -37,4 +37,10 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 USER app
 
-CMD ["uvicorn", "mcp_server_auth_template.entrypoints.mcp_server:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000
+STOPSIGNAL SIGTERM
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD python -c "import os, urllib.request; port = os.getenv('MCP_SERVER_RUNTIME_PORT', '8000'); opener = urllib.request.build_opener(urllib.request.ProxyHandler({})); opener.open(f'http://127.0.0.1:{port}/livez', timeout=2).read()"
+
+CMD ["python", "-m", "mcp_server_auth_template.entrypoints.serve"]

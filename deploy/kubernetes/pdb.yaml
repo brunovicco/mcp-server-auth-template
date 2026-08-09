@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-server-auth-template
+  labels:
+    app.kubernetes.io/name: mcp-server-auth-template
+    app.kubernetes.io/component: server
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-server-auth-template
+      app.kubernetes.io/component: server

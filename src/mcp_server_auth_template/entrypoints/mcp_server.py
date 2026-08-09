@@ -44,6 +44,8 @@ from mcp_server_auth_template.adapters.progressive_auth_http import (
 from mcp_server_auth_template.adapters.progressive_token_verifier import (
     ProgressiveAuthorizationTokenVerifier,
 )
+from mcp_server_auth_template.adapters.runtime_probes import OperationalProbeMiddleware
+from mcp_server_auth_template.application.runtime_status import RuntimeStatus
 from mcp_server_auth_template.application.tool_authorization import (
     ToolAuthorizationService,
     ToolPolicy,
@@ -58,6 +60,7 @@ _TOOL_POLICIES = {
     "health": ToolPolicy.authenticated(),
 }
 _MCP_HTTP_PATH = "/mcp"
+_OPERATIONAL_PROBE_PATHS = frozenset({"/livez", "/readyz"})
 
 
 def _deduplicate(values: list[str]) -> list[str]:
@@ -245,9 +248,14 @@ def _resolve_issuer_url(settings: Settings) -> str:
     return settings.generic_issuer_url
 
 
-def build_server(settings: Settings | None = None) -> MCPServer:
+def build_server(
+    settings: Settings | None = None,
+    *,
+    runtime_status: RuntimeStatus | None = None,
+) -> MCPServer:
     """Construct the configured ``MCPServer``, ready to serve as an ASGI app."""
     settings = settings or Settings()  # values come from the environment
+    runtime_status = runtime_status or RuntimeStatus()
     configure_logging(service=settings.service_name, environment="local", version="0.1.0")
 
     issuer_url = _resolve_issuer_url(settings)
@@ -268,9 +276,11 @@ def build_server(settings: Settings | None = None) -> MCPServer:
 
     @asynccontextmanager
     async def lifespan(_: MCPServer) -> AsyncIterator[None]:
+        runtime_status.mark_ready()
         try:
             yield None
         finally:
+            runtime_status.mark_not_ready()
             await http_client.aclose()
 
     server = MCPServer(
@@ -298,7 +308,12 @@ def build_server(settings: Settings | None = None) -> MCPServer:
     return server
 
 
-def _build_streamable_http_app(server: MCPServer, settings: Settings) -> Starlette:
+def _build_streamable_http_app(
+    server: MCPServer,
+    settings: Settings,
+    *,
+    runtime_status: RuntimeStatus | None = None,
+) -> Starlette:
     """Build the bounded, stateless Streamable HTTP ASGI surface."""
     transport_security = _build_transport_security(settings)
     app = server.streamable_http_app(
@@ -313,6 +328,12 @@ def _build_streamable_http_app(server: MCPServer, settings: Settings) -> Starlet
         ProgressiveAuthorizationMiddleware,
         resource_metadata_url=str(resource_metadata_url),
     )
+    if runtime_status is not None:
+        # Probe responses short-circuit auth but remain inside the early envelope budget.
+        app.add_middleware(
+            OperationalProbeMiddleware,
+            runtime_status=runtime_status,
+        )
     # Starlette inserts newly-added middleware at the outside of the stack.
     # Add admission last so Host/Origin/envelope checks run before auth.
     app.add_middleware(
@@ -322,6 +343,7 @@ def _build_streamable_http_app(server: MCPServer, settings: Settings) -> Starlet
         max_header_count=settings.transport_max_header_count,
         max_header_bytes=settings.transport_max_header_bytes,
         max_concurrent_requests=settings.transport_max_concurrent_requests,
+        operational_paths=_OPERATIONAL_PROBE_PATHS if runtime_status is not None else None,
     )
     return app
 
@@ -336,4 +358,6 @@ def create_app() -> Starlette:
     at import time.
     """
     settings = Settings()
-    return _build_streamable_http_app(build_server(settings), settings)
+    runtime_status = RuntimeStatus()
+    server = build_server(settings, runtime_status=runtime_status)
+    return _build_streamable_http_app(server, settings, runtime_status=runtime_status)

@@ -133,6 +133,118 @@ def test_transport_limits_are_bounded_by_default() -> None:
     assert settings.transport_max_concurrent_requests == 64
 
 
+def test_runtime_process_defaults_are_explicit_and_bounded() -> None:
+    settings = Settings(
+        auth_provider="generic",
+        resource_server_url="https://mcp.example.invalid",
+        generic_issuer_url="https://as.example.invalid",
+        generic_audience="https://mcp.example.invalid",
+    )
+
+    assert settings.runtime_host == "0.0.0.0"  # noqa: S104 - intentional bind-all runtime default
+    assert settings.runtime_port == 8000
+    assert settings.runtime_workers == 1
+    assert settings.runtime_backlog == 2048
+    assert settings.runtime_keep_alive_seconds == 5
+    assert settings.runtime_graceful_shutdown_seconds == 30
+
+
+def test_runtime_host_rejects_whitespace() -> None:
+    with pytest.raises(ValueError, match="runtime_host"):
+        Settings(
+            auth_provider="generic",
+            resource_server_url="https://mcp.example.invalid",
+            generic_issuer_url="https://as.example.invalid",
+            generic_audience="https://mcp.example.invalid",
+            runtime_host=" 0.0.0.0",
+        )
+
+
+def test_app_env_reads_the_existing_unprefixed_environment_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "staging")
+    settings = Settings(
+        auth_provider="generic",
+        resource_server_url="https://mcp.example.invalid",
+        generic_issuer_url="https://as.example.invalid",
+        generic_audience="https://mcp.example.invalid",
+    )
+
+    assert settings.app_env == "staging"
+
+
+def test_production_profile_accepts_non_placeholder_https_configuration() -> None:
+    settings = Settings(
+        app_env="production",
+        auth_provider="generic",
+        resource_server_url="https://mcp.acme.corp",
+        generic_issuer_url="https://identity.acme.corp/oidc",
+        generic_audience="https://mcp.acme.corp",
+        generic_jwks_allowed_origins=["https://keys.acme.corp"],
+        transport_allowed_origins=["https://console.acme.corp"],
+    )
+
+    assert settings.app_env == "production"
+
+
+def test_production_profile_rejects_placeholder_resource_hostname() -> None:
+    with pytest.raises(ValueError, match="placeholder hostname"):
+        Settings(
+            app_env="production",
+            auth_provider="generic",
+            resource_server_url="https://mcp.example.invalid",
+            generic_issuer_url="https://identity.acme.corp",
+            generic_audience="https://mcp.acme.corp",
+        )
+
+
+def test_production_profile_rejects_loopback_http_resource_url() -> None:
+    with pytest.raises(ValueError, match="HTTPS resource_server_url"):
+        Settings(
+            app_env="production",
+            auth_provider="generic",
+            resource_server_url="http://127.0.0.1:8000",
+            generic_issuer_url="https://identity.acme.corp",
+            generic_audience="https://mcp.acme.corp",
+        )
+
+
+def test_production_profile_rejects_insecure_oidc_escape_hatch() -> None:
+    with pytest.raises(ValueError, match="forbids oidc_allow_insecure_loopback"):
+        Settings(
+            app_env="production",
+            auth_provider="generic",
+            resource_server_url="https://mcp.acme.corp",
+            generic_issuer_url="https://identity.acme.corp",
+            generic_audience="https://mcp.acme.corp",
+            oidc_allow_insecure_loopback=True,
+        )
+
+
+def test_production_profile_rejects_non_https_generic_issuer() -> None:
+    with pytest.raises(ValueError, match="absolute HTTPS issuer"):
+        Settings(
+            app_env="production",
+            auth_provider="generic",
+            resource_server_url="https://mcp.acme.corp",
+            generic_issuer_url="http://127.0.0.1:9000",
+            generic_audience="https://mcp.acme.corp",
+        )
+
+
+def test_production_profile_rejects_all_zero_entra_placeholder() -> None:
+    with pytest.raises(ValueError, match="all-zero placeholder"):
+        Settings(
+            app_env="production",
+            auth_provider="entra",
+            resource_server_url="https://mcp.acme.corp",
+            entra_tenant_id="00000000-0000-0000-0000-000000000000",
+            entra_audience=_API_CLIENT_ID,
+            entra_application_id_uri=_APPLICATION_ID_URI,
+        )
+
+
 @pytest.mark.parametrize(
     "resource_url",
     ["http://127.0.0.1:8000", "http://[::1]:8000"],

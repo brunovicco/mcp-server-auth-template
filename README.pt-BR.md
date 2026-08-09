@@ -31,6 +31,14 @@ metade cliente desse padrão.
    uv run uvicorn mcp_server_auth_template.entrypoints.mcp_server:create_app --factory --reload
    ```
 
+   Para uma execução no estilo de produção, use o launcher do repositório:
+
+   ```bash
+   uv run python -m mcp_server_auth_template.entrypoints.serve
+   ```
+
+   Veja `docs/OPERATIONS.md` para probes, shutdown, container e orientação de Kubernetes.
+
 3. O Protected Resource Metadata é servido automaticamente em
    `/.well-known/oauth-protected-resource` - aponte um cliente MCP para
    `http://localhost:8000/mcp` e ele vai descobrir o authorization server
@@ -55,8 +63,11 @@ metade cliente desse padrão.
    ```
 
 4. Duas tools de exemplo são registradas: `whoami` retorna a identidade carregada pelo token do
-   chamador (client ID, subject, scopes), e `health` é um liveness check para um chamador já
-   autenticado.
+   chamador (client ID, subject, scopes), e `health` é um diagnóstico de aplicação autenticado
+   para clientes MCP.
+
+Liveness/readiness operacionais são expostos separadamente como `GET /livez` e `GET /readyz` sem
+autenticação; veja `docs/OPERATIONS.md` para o contrato de deployment desses endpoints.
 
 Alterne `MCP_SERVER_AUTH_PROVIDER` entre `entra` e `generic` para trocar de adapter - nenhuma outra
 mudança de código é necessária. Veja `src/mcp_server_auth_template/adapters/` para as duas

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-server-auth-template
+  labels:
+    app.kubernetes.io/name: mcp-server-auth-template
+    app.kubernetes.io/component: server
+data:
+  APP_ENV: "production"
+  MCP_SERVER_RESOURCE_SERVER_URL: "https://mcp.example.invalid"
+  MCP_SERVER_AUTH_PROVIDER: "generic"
+  MCP_SERVER_GENERIC_ISSUER_URL: "https://as.example.invalid"
+  MCP_SERVER_GENERIC_AUDIENCE: "https://mcp.example.invalid"
+  MCP_SERVER_RUNTIME_HOST: "0.0.0.0"
+  MCP_SERVER_RUNTIME_PORT: "8000"
+  MCP_SERVER_RUNTIME_WORKERS: "1"
+  MCP_SERVER_RUNTIME_GRACEFUL_SHUTDOWN_SECONDS: "30"
