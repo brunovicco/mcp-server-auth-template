@@ -6,12 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-09
+
 ### Changed
 
+- Public package version is now `0.4.0`.
 - Replaced the disconnected, hand-rolled OpenTelemetry lifecycle with the released
   `a2a-otel-kit[mcp]>=0.6,<0.7` ASGI integration at the MCP Streamable HTTP boundary.
 - Made metadata-only W3C tracing a network-silent core capability and removed the separate
   `observability` install extra.
+- Reworked the English and Brazilian Portuguese READMEs around adoption, architecture, security,
+  engineering evidence, operations, and explicit production boundaries.
 
 ### Security
 
@@ -82,6 +87,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Raw bearer tokens and full identity-provider claims are excluded from the application principal
   and security audit surface.
 
-[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/brunovicco/mcp-server-auth-template/releases/tag/v0.3.0
 [0.2.0]: https://github.com/brunovicco/mcp-server-auth-template/releases/tag/v0.2.0

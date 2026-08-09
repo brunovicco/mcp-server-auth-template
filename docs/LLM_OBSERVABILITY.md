@@ -21,7 +21,7 @@ logs derive `trace_id` and `span_id` only from a valid current span.
 ### OpenTelemetry configuration
 
 | Variable | Required | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `A2A_OTEL_ENABLED` | no (default `false`) | Enables tracing and OTLP export |
 | `A2A_OTEL_OTLP_ENDPOINT` | required when enabled | Complete OTLP HTTP traces endpoint |
 | `A2A_OTEL_OTLP_TIMEOUT_SECONDS` | no (default `10.0`) | Export timeout |
@@ -83,7 +83,7 @@ not set, so application code never needs to branch on whether tracing is enabled
 ## Configuration reference
 
 | Variable | Required | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `LANGFUSE_PUBLIC_KEY` | to enable tracing | Project public key |
 | `LANGFUSE_SECRET_KEY` | to enable tracing | Project secret key; environment-injected only |
 | `LANGFUSE_BASE_URL` | no (defaults to EU cloud) | Cloud region or self-hosted URL |

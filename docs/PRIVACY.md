@@ -8,7 +8,7 @@ later adds a datastore or processes other personal data.
 ## Data inventory
 
 | Data category | Source | Purpose | Legal/contractual basis | Destination | Retention | Deletion method |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | Bearer token + its decoded claims (`sub`, `client_id`, `scope`/`scp`/`roles`, `tid` for Entra) | Caller's `Authorization` header | Verify the request is authenticated and scoped, and answer `whoami` with the caller's own identity | Necessary to provide the requested service (RFC 6749/8707 resource-server verification) | Process memory only, for the duration of the request | Not retained - discarded when the request completes | N/A (never written to disk, a database, or a log) |
 
 ## Controls
@@ -37,8 +37,8 @@ later adds a datastore or processes other personal data.
 - Data-subject deletion/anonymization: not applicable - nothing is retained past the request.
 - External processors: the configured authorization server (Entra ID or the generic OIDC AS) is the
   only external system this service calls, and only for discovery/JWKS metadata; a caller's token
-  itself is never forwarded elsewhere. If the optional OpenTelemetry or Langfuse tracing extras are
-  enabled, their configured OTLP/Langfuse endpoint becomes an additional external processor - keep
+  itself is never forwarded elsewhere. If OpenTelemetry export or the optional Langfuse adapter is
+  enabled, the configured OTLP/Langfuse endpoint becomes an additional external processor - keep
   it metadata-only per the policy above.
 - Incident-response owner: set per deployment - this template does not prescribe one.
 
