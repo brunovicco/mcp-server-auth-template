@@ -2,6 +2,7 @@
 
 from typing import cast
 
+import pytest
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
@@ -16,6 +17,8 @@ from mcp_server_auth_template.entrypoints.settings import Settings
 
 _PROTOCOL_VERSION = "2026-07-28"
 _RESOURCE_URL = "https://mcp.example.invalid"
+_HEADER_MISMATCH = -32020
+_UNSUPPORTED_PROTOCOL_VERSION = -32022
 
 
 class _TokenVerifier:
@@ -48,7 +51,7 @@ def _settings(**overrides: object) -> Settings:
     return Settings.model_validate(values)
 
 
-def _modern_tool_request() -> dict[str, object]:
+def _modern_tool_request(protocol_version: str = _PROTOCOL_VERSION) -> dict[str, object]:
     return {
         "jsonrpc": "2.0",
         "id": 1,
@@ -57,7 +60,7 @@ def _modern_tool_request() -> dict[str, object]:
             "name": "whoami",
             "arguments": {},
             "_meta": {
-                "io.modelcontextprotocol/protocolVersion": _PROTOCOL_VERSION,
+                "io.modelcontextprotocol/protocolVersion": protocol_version,
                 "io.modelcontextprotocol/clientInfo": {
                     "name": "transport-security-test",
                     "version": "1.0.0",
@@ -68,14 +71,21 @@ def _modern_tool_request() -> dict[str, object]:
     }
 
 
-def _headers(token: str, *, session_id: str | None = None) -> dict[str, str]:
+def _headers(
+    token: str,
+    *,
+    protocol_version: str = _PROTOCOL_VERSION,
+    method: str = "tools/call",
+    name: str = "whoami",
+    session_id: str | None = None,
+) -> dict[str, str]:
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "MCP-Protocol-Version": _PROTOCOL_VERSION,
-        "Mcp-Method": "tools/call",
-        "Mcp-Name": "whoami",
+        "MCP-Protocol-Version": protocol_version,
+        "Mcp-Method": method,
+        "Mcp-Name": name,
     }
     if session_id is not None:
         headers["Mcp-Session-Id"] = session_id
@@ -150,6 +160,55 @@ def test_modern_requests_ignore_legacy_session_header_and_keep_identity_request_
     assert cast(dict[str, object], alice_result["structuredContent"])["subject"] == "alice"
     assert cast(dict[str, object], bob_result["structuredContent"])["subject"] == "bob"
     assert verifier.calls == 2
+
+
+@pytest.mark.parametrize(
+    ("header", "mismatched_value"),
+    [
+        ("Mcp-Method", "tools/list"),
+        ("Mcp-Name", "health"),
+    ],
+)
+def test_modern_requests_reject_routing_header_envelope_mismatch(
+    header: str,
+    mismatched_value: str,
+) -> None:
+    verifier = _TokenVerifier()
+    app = _build_streamable_http_app(_server(verifier), _settings())
+    headers = _headers("alice-token")
+    headers[header] = mismatched_value
+
+    with TestClient(app, base_url=_RESOURCE_URL) as client:
+        response = client.post("/mcp", json=_modern_tool_request(), headers=headers)
+
+    assert response.status_code == 400
+    payload = cast(dict[str, object], response.json())
+    error = cast(dict[str, object], payload["error"])
+    assert error["code"] == _HEADER_MISMATCH
+    assert verifier.calls == 1
+
+
+def test_modern_requests_reject_unsupported_protocol_version_with_supported_versions() -> None:
+    verifier = _TokenVerifier()
+    app = _build_streamable_http_app(_server(verifier), _settings())
+    requested_version = "2099-01-01"
+
+    with TestClient(app, base_url=_RESOURCE_URL) as client:
+        response = client.post(
+            "/mcp",
+            json=_modern_tool_request(requested_version),
+            headers=_headers("alice-token", protocol_version=requested_version),
+        )
+
+    assert response.status_code == 400
+    payload = cast(dict[str, object], response.json())
+    error = cast(dict[str, object], payload["error"])
+    assert error["code"] == _UNSUPPORTED_PROTOCOL_VERSION
+    assert error["data"] == {
+        "supported": [_PROTOCOL_VERSION],
+        "requested": requested_version,
+    }
+    assert verifier.calls == 1
 
 
 def test_invalid_origin_is_rejected_before_bearer_verification() -> None:

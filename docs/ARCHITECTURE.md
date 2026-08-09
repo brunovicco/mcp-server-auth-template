@@ -14,6 +14,7 @@ client already obtained and translating their claims into the identity the serve
 - **Downstream dependency**: MCP clients (2026-07-28 spec) that discover this server's Protected
   Resource Metadata at `/.well-known/oauth-protected-resource`, obtain a token from the configured
   AS, and call the registered tools (`whoami`, `health`) with that token as a bearer credential.
+  The server advertises the draft OAuth Client Credentials extension for non-interactive clients.
 - **Companion repository**: [`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template)
   owns the client-side half of this pattern (token acquisition, client registration).
 
@@ -85,5 +86,17 @@ sequenceDiagram
     Client->>Server: Call a tool, Authorization: Bearer <token>
     Server->>AS: Fetch OIDC discovery + JWKS (cached)
     Server->>Server: Verify signature, issuer, audience, expiry
+    alt Tool needs an additional scope
+        Server-->>Client: 403 insufficient_scope before dispatch
+        Client->>AS: Reauthorize with prior + challenged scopes
+        AS-->>Client: Elevated access token
+        Client->>Server: Retry the undispatched request once
+    end
     Server-->>Client: Tool result
 ```
+
+For the generic-OIDC client-credentials profile, token acquisition uses a pre-registered
+confidential client instead of browser authorization, CIMD, or DCR. Resource-server validation is
+unchanged: signature, issuer, audience, expiry, and OAuth scopes remain mandatory. Generic claims
+are not promoted to Entra application identity. Entra app-only authorization continues to require
+the explicit `idtyp=app` classification and `ToolPolicy.application_roles(...)`.
