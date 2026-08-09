@@ -764,7 +764,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.8" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.13" },
     { name = "structlog", specifier = ">=25.1" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.1" },
 ]
 provides-extras = ["tracing"]
 

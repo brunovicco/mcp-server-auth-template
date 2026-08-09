@@ -14,7 +14,7 @@ dependencies = [
     "pyjwt[crypto]>=2.13",
     "httpx>=0.28",
     "cachetools>=5.5",
-    "uvicorn[standard]>=0.34",
+    "uvicorn[standard]>=0.52.1",
 ]
 
 [project.optional-dependencies]
