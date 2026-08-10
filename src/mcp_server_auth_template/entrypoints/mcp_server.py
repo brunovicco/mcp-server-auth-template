@@ -15,6 +15,7 @@ Run locally with:
 
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from importlib.metadata import version
 from typing import cast
 from urllib.parse import urlsplit
 
@@ -67,7 +68,7 @@ from mcp_server_auth_template.entrypoints.settings import Settings
 _HEALTH_SCOPE = "mcp:tools:health"
 _MCP_HTTP_PATH = "/mcp"
 _OPERATIONAL_PROBE_PATHS = frozenset({"/livez", "/readyz"})
-_SERVICE_VERSION = "0.4.0"
+_SERVICE_VERSION = version("mcp-server-auth-template")
 
 
 def build_observability_settings(settings: Settings) -> ObservabilitySettings:

@@ -210,7 +210,7 @@ def test_build_observability_settings_is_disabled_by_default() -> None:
     observability = build_observability_settings(settings)
 
     assert observability.service_name == "mcp-server-auth-template"
-    assert observability.service_version == "0.4.0"
+    assert observability.service_version == "0.5.0"
     assert observability.environment == "test"
     assert observability.enabled is False
 

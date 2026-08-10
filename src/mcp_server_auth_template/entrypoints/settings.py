@@ -251,6 +251,11 @@ class Settings(BaseSettings):
         self._validate_runtime_settings()
         self._validate_resource_server_transport_url()
         self._validate_transport_allowlists()
+        if "offline_access" in self.required_scopes:
+            raise ValueError(
+                "required_scopes must not include offline_access; refresh-token consent belongs "
+                "to the OAuth client and authorization server"
+            )
         if self.auth_provider == "entra":
             if self.entra_tenant_id:
                 try:

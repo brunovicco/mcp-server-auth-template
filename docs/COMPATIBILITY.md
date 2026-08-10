@@ -119,8 +119,11 @@ rejected before tool dispatch with one `403 insufficient_scope` challenge contai
 operation requirement. The client reauthorizes with the union of its prior grant and the challenged
 scope, then the SDK repeats that undispatched request once. For Entra, both logical names are
 qualified with the configured Application ID URI and `health` requires a delegated identity.
+The resource server rejects `offline_access` when configured as a required resource scope because
+refresh-token consent belongs to the OAuth client and authorization server, not the protected
+resource.
 
-The pair also exercises the draft `io.modelcontextprotocol/oauth-client-credentials` extension
+The pair also exercises the official optional `io.modelcontextprotocol/oauth-client-credentials` extension
 with the SDK support floor. The server advertises the capability and accepts a resource-bound token
 issued to a pre-registered generic-OIDC client; the client proves HTTP Basic token-endpoint
 authentication, zero browser authorization, zero DCR/CIMD, and non-interactive scope step-up. This
