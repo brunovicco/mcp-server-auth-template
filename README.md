@@ -45,7 +45,7 @@ end-to-end implementation.
 | MCP | Python SDK `>=2.0,<3`, protocol profile `2026-07-28`, Streamable HTTP |
 | Identity | Microsoft Entra ID or generic OIDC; one authorization server per deployment |
 | Authorization | Issuer, audience, signature, expiry, delegated scopes, Entra application roles, progressive scope challenges |
-| Machine access | Draft MCP OAuth Client Credentials extension for the deterministic generic-OIDC profile |
+| Machine access | Official optional MCP OAuth Client Credentials extension for the deterministic generic-OIDC profile |
 | Runtime | Python 3.13/3.14, Uvicorn launcher, stateless transport, liveness/readiness probes |
 | Observability | Structured logs and opt-in metadata-only W3C tracing through `a2a-otel-kit` |
 | Delivery | Locked dependencies, multi-stage non-root image, Kubernetes security baseline, CI compatibility matrices |
@@ -148,6 +148,29 @@ This is a transparent reference implementation, not a security certification. Re
 - offline JWT fixtures: unit and contract tests use local keys and synthetic identities, never a
   production IdP or real credential;
 - ADRs document security, protocol, operations, compatibility, and observability decisions.
+
+## MCP 2026-07-28 compliance evidence
+
+The paired templates exercise the current stateless MCP profile as executable behavior rather than
+relying on a version claim alone:
+
+- `server/discover` and per-request `_meta` carry protocol version, client identity, and
+  capabilities without the legacy `initialize`/`initialized` handshake;
+- modern requests use `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name`; responses do not mint
+  `Mcp-Session-Id`;
+- RFC 9728 Protected Resource Metadata drives authorization-server discovery;
+- RFC 8707 `resource` binding is exercised across authorization and token requests, and the server
+  validates the resulting JWT audience exactly;
+- generic OIDC uses CIMD first with DCR only as a compatibility fallback, and authorization
+  responses validate `iss` per RFC 9207 before code redemption;
+- runtime `403 insufficient_scope` challenges preserve prior grants, request the complete missing
+  scope set, and allow only the bounded undispatched replay;
+- machine-to-machine access is opt-in through the official
+  `io.modelcontextprotocol/oauth-client-credentials` extension.
+
+See [Compatibility](docs/COMPATIBILITY.md) and the companion client's
+[cross-repository E2E evidence](https://github.com/brunovicco/mcp-client-auth-template/blob/main/docs/E2E.md)
+for the executable matrix.
 
 ## Observability
 

@@ -35,9 +35,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Made the checksum-corruption regression test deterministic so release-integrity failures are
   exercised reliably.
+- Derive runtime logging and OpenTelemetry service version from installed package metadata so
+  released telemetry identifies `v0.5.0` correctly.
 
 ### Security
 
+- Reject `offline_access` when configured as a required MCP resource scope; refresh-token consent
+  belongs to the OAuth client and authorization server.
 - GHCR authentication happens only after the vulnerability policy approves the locally built
   production image.
 - Attestation, registry, and GitHub Release write authority are isolated into narrowly scoped jobs.

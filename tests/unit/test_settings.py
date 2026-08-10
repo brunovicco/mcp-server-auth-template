@@ -85,6 +85,17 @@ def test_generic_required_scopes_pass_through_unchanged() -> None:
     assert settings.effective_required_scopes == ["mcp:tools:call"]
 
 
+def test_required_scopes_reject_offline_access() -> None:
+    with pytest.raises(ValueError, match="offline_access"):
+        Settings(
+            auth_provider="generic",
+            resource_server_url="https://mcp.example.invalid",
+            required_scopes=["mcp:tools:call", "offline_access"],
+            generic_issuer_url="https://as.example.invalid",
+            generic_audience="https://mcp.example.invalid",
+        )
+
+
 def test_generic_mode_rejects_missing_fields() -> None:
     with pytest.raises(ValueError, match="generic_issuer_url"):
         Settings(auth_provider="generic", resource_server_url="https://mcp.example.invalid")

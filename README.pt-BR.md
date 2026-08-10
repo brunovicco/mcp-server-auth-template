@@ -45,7 +45,7 @@ implementação ponta a ponta testada.
 | MCP | Python SDK `>=2.0,<3`, perfil `2026-07-28`, Streamable HTTP |
 | Identidade | Microsoft Entra ID ou OIDC genérico; um authorization server por deployment |
 | Autorização | Issuer, audience, assinatura, expiração, scopes delegados, app roles do Entra e desafios progressivos |
-| Acesso de máquina | Extensão draft MCP OAuth Client Credentials no perfil determinístico OIDC genérico |
+| Acesso de máquina | Extensão oficial e opcional MCP OAuth Client Credentials no perfil determinístico OIDC genérico |
 | Runtime | Python 3.13/3.14, launcher Uvicorn, transporte stateless e probes de liveness/readiness |
 | Observabilidade | Logs estruturados e tracing W3C apenas de metadados via `a2a-otel-kit` |
 | Entrega | Dependências travadas, imagem multi-stage non-root, baseline Kubernetes e matrizes de CI |
@@ -151,6 +151,29 @@ Esta é uma implementação de referência transparente, não uma certificação
 - fixtures JWT offline: testes unitários e de contrato usam chaves locais e identidades sintéticas,
   nunca um IdP de produção ou credencial real;
 - ADRs documentam decisões de segurança, protocolo, operações, compatibilidade e observabilidade.
+
+## Evidências de conformidade com MCP 2026-07-28
+
+Os templates em conjunto exercitam o perfil MCP stateless atual como comportamento executável, em
+vez de depender apenas de uma declaração de versão:
+
+- `server/discover` e `_meta` por requisição carregam versão do protocolo, identidade e capacidades
+  do cliente sem o handshake legado `initialize`/`initialized`;
+- requisições modernas usam `MCP-Protocol-Version`, `Mcp-Method` e `Mcp-Name`; as respostas não
+  emitem `Mcp-Session-Id`;
+- Protected Resource Metadata RFC 9728 conduz o discovery do authorization server;
+- o vínculo `resource` da RFC 8707 é exercitado nas requisições de autorização e token, e o servidor
+  valida exatamente a audience resultante no JWT;
+- OIDC genérico usa CIMD primeiro e mantém DCR apenas como fallback de compatibilidade, enquanto a
+  resposta de autorização valida `iss` conforme RFC 9207 antes de resgatar o code;
+- desafios `403 insufficient_scope` em runtime preservam grants anteriores, solicitam o conjunto
+  completo de scopes ausentes e permitem apenas o replay limitado da operação ainda não executada;
+- acesso máquina-a-máquina é opt-in pela extensão oficial
+  `io.modelcontextprotocol/oauth-client-credentials`.
+
+Veja [Compatibilidade](docs/COMPATIBILITY.md) e as
+[evidências E2E entre repositórios](https://github.com/brunovicco/mcp-client-auth-template/blob/main/docs/E2E.md)
+do cliente companheiro para a matriz executável.
 
 ## Observabilidade
 
