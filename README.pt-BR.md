@@ -8,62 +8,107 @@
 
 *[Read in English](README.md)*
 
-> Um template de resource server OAuth 2.1 para MCP remoto, pensado para produção: Microsoft Entra
-> ID e OIDC genérico, autorização fail-closed, interoperabilidade executável e padrões operacionais
-> que podem ser auditados antes da adoção.
+> Uma referência de resource server OAuth 2.1 orientada a produção para MCP remoto: Microsoft Entra
+> ID e OIDC genérico, validação exata de token/resource, autorização fail-closed, desafios
+> progressivos de scope, MCP stateless `2026-07-28` e evidência OpenTelemetry apenas de metadados.
 
-Use este projeto para começar um servidor MCP seguro sem reconstruir do zero validação de tokens,
-enforcement de scopes, admissão de transporte, observabilidade e higiene de deployment. O alvo é o
-perfil de referência MCP **2026-07-28**, em conjunto com o
-[`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template) para uma
-implementação ponta a ponta testada.
+Use este repositório quando a parte difícil não for "como expor uma tool MCP?", mas **como expô-la
+sem enfraquecer as fronteiras de identidade, autorização, transporte e observabilidade**. O server
+forma um par com
+[`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template), que fornece a
+referência ponta a ponta executável usando identidades sintéticas e sem credenciais de produção.
 
-## Por que este template existe
+## O que este repositório comprova
 
-- **Comece por uma fronteira de segurança funcional.** O servidor valida tokens emitidos
-  externamente; ele nunca se transforma em authorization server nem controla o login do usuário.
-- **Atenda identidade corporativa e baseada em padrões.** Alterne entre Microsoft Entra ID e um
-  provider OIDC compatível por configuração, sem mudar o código da aplicação.
-- **Torne a autorização observável e testável.** Protected Resource Metadata, desafios OAuth,
-  scopes progressivos, envelopes MCP modernos e identidade de máquina são contratos executáveis.
-- **Inclua disciplina operacional desde o início.** Preflight de produção, logs estruturados,
-  tracing apenas de metadados, health probes, container endurecido, exemplos Kubernetes e shutdown
-  gracioso já estão representados.
+O fluxo executável do par valida comportamento real do resource server, e não apenas configuração:
 
-## Para quem é
+- ✅ publica Protected Resource Metadata conforme RFC 9728
+- ✅ transforma o `resource` da RFC 8707 em uma fronteira exata de audience do JWT
+- ✅ issuer, assinatura, expiração, algoritmo/chave e tipo do chamador falham de forma fechada
+- ✅ scopes delegados e application roles do Entra permanecem conceitos distintos
+- ✅ retorna `403 insufficient_scope` antes do dispatch para autorização progressiva
+- ✅ rejeita token com audience incorreta com `401`
+- ✅ mantém tools protegidas fora do catálogo anônimo
+- ✅ mantém MCP `2026-07-28` stateless, sem emitir `Mcp-Session-Id`
+- ✅ suporta OIDC genérico e Microsoft Entra ID sem vazar detalhes do provider para a aplicação
+- ✅ continua W3C Trace Context sem colocar valores sensíveis de OAuth/MCP na telemetria
+- ✅ valida artifacts, imagem, SBOMs e provenance por gates executáveis
 
-| Público | O que pode avaliar ou reutilizar |
-| --- | --- |
-| Desenvolvedores | Uma referência executável para tools MCP protegidas por OAuth, adapters, testes e setup local |
-| Tech leads e CTOs | Fronteiras de confiança explícitas, premissas de deployment, compatibilidade, privacidade e ADRs |
-| Revisores técnicos e recrutadores | Evidências concretas de design de protocolos, segurança, tipagem estrita, automação de CI e visão de produção |
-
-## Visão rápida
-
-| Dimensão | Contrato incluído |
-| --- | --- |
-| MCP | Python SDK `>=2.0,<3`, perfil `2026-07-28`, Streamable HTTP |
-| Identidade | Microsoft Entra ID ou OIDC genérico; um authorization server por deployment |
-| Autorização | Issuer, audience, assinatura, expiração, scopes delegados, app roles do Entra e desafios progressivos |
-| Acesso de máquina | Extensão oficial e opcional MCP OAuth Client Credentials no perfil determinístico OIDC genérico |
-| Runtime | Python 3.13/3.14, launcher Uvicorn, transporte stateless e probes de liveness/readiness |
-| Observabilidade | Logs estruturados e tracing W3C apenas de metadados via `a2a-otel-kit` |
-| Entrega | Dependências travadas, imagem multi-stage non-root, baseline Kubernetes e matrizes de CI |
-
-## Onde ele se encaixa
+## Arquitetura
 
 ```mermaid
 flowchart LR
-    Client["Cliente MCP"] -->|"Bearer token + requisição MCP"| Server["Este resource server MCP"]
-    Client -->|"OAuth 2.1"| AS["Entra ID ou authorization server OIDC"]
+    Client["Cliente MCP"] -->|"OAuth 2.1 / OIDC"| AS["Authorization server<br/>Entra ID ou OIDC genérico"]
+    Client -->|"MCP 2026-07-28<br/>bearer vinculado ao resource"| Admission["Admissão de transporte"]
+    Admission --> AuthN["Verificação do token"]
+    AuthN --> AuthZ["Autorização da tool"]
+    AuthZ --> Tools["Tools MCP"]
+    Server["Este resource server"] --- Admission
+
     Server -->|"OIDC discovery + JWKS em cache"| AS
-    Server -.->|"traces de metadados (opt-in)"| OTLP["Coletor OTLP"]
+    Server -.->|"W3C trace context + OTLP"| Collector["OpenTelemetry Collector"]
+    Collector --> Tempo["Tempo"]
+    Tempo --> Grafana["Grafana"]
 ```
 
-O authorization server controla login, consentimento, registro do cliente e emissão de tokens.
-Este servidor publica Protected Resource Metadata RFC 9728, valida o access token resultante,
-mapeia claims verificadas para um principal restrito à requisição e autoriza a tool antes do
-dispatch.
+O authorization server controla login, consentimento, registro do cliente e emissão de tokens. Este
+repositório controla o recurso protegido: admissão de transporte, publicação de metadados,
+verificação do access token, construção do principal por requisição, autorização e dispatch.
+
+Veja [Arquitetura](docs/ARCHITECTURE.md) para as camadas e a sequência detalhada.
+
+## Verificação em 5 minutos
+
+O client companheiro é o dono do fluxo executável entre os dois repositórios. Com ambos clonados
+como diretórios irmãos, valide este server diretamente do código-fonte:
+
+```bash
+cd ../mcp-client-auth-template
+./scripts/run_reference_demo.sh \
+  --server-root ../mcp-server-auth-template
+```
+
+O fluxo inicia o server real deste checkout mais um OIDC local determinístico e comprova
+Authorization Code + PKCE com CIMD-first, `whoami` autenticado, step-up limitado, rejeição de
+audience incorreta e comportamento MCP stateless.
+
+Para a evidência observável usando a imagem publicada:
+
+```bash
+cd ../mcp-client-auth-template
+./scripts/run_observability_demo.sh --keep
+```
+
+O fluxo observável verifica um único trace distribuído entre client e server, recebimento positivo
+no Collector, consulta no Tempo, provisioning do Grafana e assertions de privacidade da telemetria.
+
+Veja o [Guia de verificação](docs/VERIFICATION.pt-BR.md) para a fronteira exata da evidência.
+
+### Evidência visual
+
+O terminal abaixo é capturado do fluxo do par executando o server diretamente do código-fonte:
+
+![Demo de referência do server](docs/assets/server-reference-demo.gif)
+
+As telas de trace são capturadas de uma execução observável bem-sucedida, com foco nos spans de
+`mcp-server-auth-template`:
+
+![Trace distribuído do server](docs/assets/server-observability-trace.png)
+
+![Detalhe do trace distribuído do server](docs/assets/server-observability-trace-detail.png)
+
+## Perfis de autenticação
+
+| Perfil | Uso indicado | Comportamento principal |
+| --- | --- | --- |
+| Entra delegado | Usuários corporativos interativos | Valida `scp`, tenant/aplicação, issuer, audience e subject |
+| Entra aplicação | Deployments app-only específicos do provider | Exige `idtyp=app`; mantém `roles` separados de scopes delegados |
+| OIDC genérico delegado | Clientes interativos baseados em padrões | Valida issuer/audience/assinatura/expiração e scopes OAuth |
+| Client credentials OIDC genérico | Serviços sem usuário no perfil determinístico do par | Aceita tokens de máquina pré-registrada e scopes OAuth progressivos |
+
+Defina `MCP_SERVER_AUTH_PROVIDER=entra` ou `generic` para trocar de adapter. A tool `whoami` retorna
+a identidade verificada; `health` exige o scope adicional `mcp:tools:health` e demonstra
+`403 insufficient_scope` antes do dispatch.
 
 ## Início rápido
 
@@ -78,124 +123,121 @@ uv sync --frozen --all-groups
 uv run uvicorn mcp_server_auth_template.entrypoints.mcp_server:create_app --factory --reload
 ```
 
-Configure o bloco do Entra ou do OIDC genérico no `.env` e aponte um cliente MCP para
+Configure o bloco do Entra ou OIDC genérico no `.env` e aponte o cliente para
 `http://localhost:8000/mcp`.
 
 | Endpoint | Finalidade | Autenticação |
 | --- | --- | --- |
 | `/mcp` | MCP Streamable HTTP | Bearer token |
-| `/.well-known/oauth-protected-resource` | Metadados para descoberta do authorization server | Público |
-| `/livez` | Liveness do processo | Público, resposta mínima |
+| `/.well-known/oauth-protected-resource` | Descoberta do authorization server | Público |
+| `/livez` | Liveness | Público, resposta mínima |
 | `/readyz` | Readiness do lifespan MCP | Público, resposta mínima |
 
-Para uma execução no estilo de produção, use o launcher explícito:
+Para execução no estilo de produção:
 
 ```bash
 uv run python -m mcp_server_auth_template.entrypoints.serve
 ```
 
-Leia [Operações de produção](docs/OPERATIONS.md) antes de expor o serviço fora de loopback.
+Leia [Operações](docs/OPERATIONS.md) antes de expor o serviço fora de loopback.
 
-## Perfis de autenticação
-
-| Perfil | Uso indicado | Comportamento principal |
-| --- | --- | --- |
-| Entra delegado | Usuários corporativos interativos | Valida `scp`, identificadores de tenant/aplicação, issuer, audience e subject |
-| Entra aplicação | Deployments app-only específicos do provider | Exige `idtyp=app`; mantém `roles` separados dos scopes delegados |
-| OIDC genérico delegado | Clientes interativos baseados em padrões | Valida issuer/audience/assinatura/expiração e scopes OAuth |
-| Client credentials OIDC genérico | Serviços sem usuário no perfil determinístico do par | Aceita tokens de máquina pré-registrada e scopes OAuth progressivos |
-
-Defina `MCP_SERVER_AUTH_PROVIDER=entra` ou `generic` para trocar de adapter. A tool de exemplo
-`whoami` retorna a identidade verificada do chamador; `health` exige o scope adicional
-`mcp:tools:health` e demonstra um desafio `403 insufficient_scope` antes do dispatch.
-
-## Postura de segurança
+## Propriedades de segurança
 
 A implementação é intencionalmente fail-closed:
 
-- validação exata de issuer e audience, limites de tempo, compatibilidade de algoritmo/chave e
+- validação exata de issuer e audience, limites de relógio, compatibilidade de algoritmo/chave e
   refresh de JWKS em cache;
 - egress endurecido para discovery/JWKS contra esquemas inseguros, redirects, compressão, corpos
   grandes, destinos privados/reservados, respostas DNS mistas e DNS rebinding;
 - admissão de Host, Origin, headers, envelope, tamanho do corpo e concorrência antes da autenticação
-  e do dispatch da tool;
-- identidades delegadas e de aplicação permanecem distintas; negociar uma extensão nunca concede
-  autorização por si só;
-- bearer tokens e claims decodificadas ficam restritos à requisição e nunca são logados ou
-  persistidos;
-- o tracing exclui credenciais, headers e URLs arbitrários, argumentos/resultados MCP, bodies,
-  baggage e texto de exceções.
+  e do dispatch;
+- identidades delegadas e de aplicação permanecem distintas;
+- bearer tokens e claims decodificadas ficam restritos à requisição e não são logados/persistidos;
+- tracing exclui credenciais, headers/URLs arbitrários, argumentos/resultados MCP, bodies, baggage
+  e texto de exceções.
 
-Esta é uma implementação de referência transparente, não uma certificação de segurança. Leia
-[Privacidade e tratamento de dados](docs/PRIVACY.md) e as decisões em
-[`docs/adr/`](docs/adr/) antes de adaptar a fronteira.
+Esta é uma implementação de referência, não uma certificação de segurança. Leia
+[Privacidade](docs/PRIVACY.md) e as decisões em [`docs/adr/`](docs/adr/).
 
-## Evidências de engenharia
+## MCP `2026-07-28`
 
-- quality gate determinístico com lint, format, Mypy estrito, arquitetura, testes, cobertura,
-  Bandit, auditoria de dependências e baseline executável de confiança da supply chain;
-- GitHub Actions fixadas por SHA, permissões somente leitura por padrão, escritas de release
-  isoladas e com privilégio mínimo, updates semanais controlados e revisão de
-  dependências/licenças nos pull requests;
-- inventários CycloneDX de código/runtime, evidência de vulnerabilidades da imagem com checksum e
-  gate fail-closed para exceções temporárias;
-- artifacts Python de release com allowlist, reprodução byte a byte, manifestos SHA-256 e
-  attestations de build provenance do GitHub;
-- workflow de publicação controlado por tag que produz GitHub Releases com evidência completa
-  de integridade e attestations CycloneDX, e publica a imagem GHCR aprovada pela política com
-  provenance e verificação por digest imutável;
-- Python 3.13/3.14 contra MCP SDK 2.0.0 e a versão 2.x compatível mais recente;
-- Entra/OIDC genérico em HTTPS de produção e perfis locais IPv4/IPv6 explicitamente habilitados;
-- contrato canônico entre repositórios e suíte OAuth/MCP E2E real de 12 cenários mantida pelo
-  cliente companheiro;
-- fixtures JWT offline: testes unitários e de contrato usam chaves locais e identidades sintéticas,
-  nunca um IdP de produção ou credencial real;
-- ADRs documentam decisões de segurança, protocolo, operações, compatibilidade e observabilidade.
+O par de templates exercita o perfil moderno stateless como comportamento executável:
 
-## Evidências de conformidade com MCP 2026-07-28
-
-Os templates em conjunto exercitam o perfil MCP stateless atual como comportamento executável, em
-vez de depender apenas de uma declaração de versão:
-
-- `server/discover` e `_meta` por requisição carregam versão do protocolo, identidade e capacidades
-  do cliente sem o handshake legado `initialize`/`initialized`;
-- requisições modernas usam `MCP-Protocol-Version`, `Mcp-Method` e `Mcp-Name`; as respostas não
-  emitem `Mcp-Session-Id`;
-- Protected Resource Metadata RFC 9728 conduz o discovery do authorization server;
-- o vínculo `resource` da RFC 8707 é exercitado nas requisições de autorização e token, e o servidor
-  valida exatamente a audience resultante no JWT;
-- OIDC genérico usa CIMD primeiro e mantém DCR apenas como fallback de compatibilidade, enquanto a
-  resposta de autorização valida `iss` conforme RFC 9207 antes de resgatar o code;
-- desafios `403 insufficient_scope` em runtime preservam grants anteriores, solicitam o conjunto
-  completo de scopes ausentes e permitem apenas o replay limitado da operação ainda não executada;
-- acesso máquina-a-máquina é opt-in pela extensão oficial
+- `server/discover` e `_meta` por requisição carregam versão, identidade e capacidades sem o
+  handshake legado `initialize` / `initialized`;
+- requisições modernas usam `MCP-Protocol-Version`, `Mcp-Method` e `Mcp-Name`;
+- as respostas não emitem `Mcp-Session-Id`;
+- Protected Resource Metadata conduz o discovery;
+- RFC 8707 `resource` vincula exatamente a audience do access token;
+- `403 insufficient_scope` preserva grants existentes e permite apenas um replay limitado da
+  operação ainda não executada;
+- acesso máquina-a-máquina é opt-in por
   `io.modelcontextprotocol/oauth-client-credentials`.
 
 Veja [Compatibilidade](docs/COMPATIBILITY.md) e as
-[evidências E2E entre repositórios](https://github.com/brunovicco/mcp-client-auth-template/blob/main/docs/E2E.md)
-do cliente companheiro para a matriz executável.
+[evidências E2E do client](https://github.com/brunovicco/mcp-client-auth-template/blob/main/docs/E2E.md).
 
 ## Observabilidade
 
-O `a2a-otel-kit` continua o contexto W3C na fronteira ASGI do MCP. O export é silencioso em rede,
-a menos que `A2A_OTEL_ENABLED=true` e um endpoint OTLP completo de traces sejam configurados. Os
-spans contêm apenas metadados e ficam dentro da admissão HTTP endurecida, mas fora da autenticação
-e do dispatch das tools. Veja [Observabilidade de aplicação e LLM](docs/LLM_OBSERVABILITY.md).
+O `a2a-otel-kit` continua W3C Trace Context na fronteira ASGI MCP. O export é silencioso em rede a
+menos que `A2A_OTEL_ENABLED=true` e um endpoint OTLP completo sejam configurados. Os spans contêm
+somente metadados e ficam dentro da admissão HTTP endurecida, mas fora da autenticação e dispatch.
 
-## Mapa da documentação
+Veja [Observabilidade](docs/LLM_OBSERVABILITY.md).
+
+## Evidências de engenharia
+
+- quality gate determinístico com lint, format, Mypy estrito, arquitetura, testes/cobertura,
+  Bandit, auditoria de dependências, supply chain, governança e contratos vendorizados;
+- GitHub Actions fixadas por SHA e permissões somente leitura por padrão;
+- inventários CycloneDX, relatório completo de vulnerabilidades e política fail-closed de exceções;
+- artifacts Python allowlisted e reprodutíveis byte a byte com SHA-256 e build provenance;
+- publicação GHCR aprovada por política com digest imutável, provenance e SBOM attestations;
+- Python 3.13/3.14 contra MCP SDK 2.0.0 e 2.x compatível mais recente;
+- fixtures JWT offline com chaves locais e identidades sintéticas;
+- ADRs para decisões de segurança, protocolo, operação, compatibilidade, observabilidade e
+  supply chain.
+
+## Demo vs produção
+
+| Evidência de referência | Adoção em produção |
+| --- | --- |
+| OIDC local sintético no client companheiro | Authorization server corporativo com registro/consentimento revisados |
+| Networking local/loopback | Rede de serviços protegida por TLS e ownership explícito de proxy |
+| Collector/Tempo/Grafana locais | Pipeline corporativo de telemetria e política de retenção |
+| Chaves e identidades sintéticas | Chaves/segredos gerenciados e controles específicos do provider |
+| Tools `whoami` / `health` | Tools de domínio com políticas explícitas e controle de efeitos colaterais |
+
+As configurações de referência comprovam fronteiras; não são defaults de produção.
+
+## Estrutura do repositório
+
+```text
+src/                    implementação do resource server
+tests/                  evidências unitárias, de contrato e segurança
+scripts/                automação de qualidade, governança e release
+docs/                   arquitetura, operações, privacidade e segurança
+examples/                configuração/deployment de referência
+.github/workflows/      CI, compatibilidade e release
+```
+
+Estado local de editores e coding agents é deliberadamente excluído do repositório público.
+
+## Documentação
 
 | Documento | Quando usar |
 | --- | --- |
-| [Arquitetura](docs/ARCHITECTURE.md) | Contexto, camadas, dependências e sequência de requisição |
-| [Compatibilidade](docs/COMPATIBILITY.md) | Versões suportadas e contrato executável cliente/servidor |
+| [Verificação](docs/VERIFICATION.pt-BR.md) | Prova do par por source e observabilidade |
+| [Arquitetura](docs/ARCHITECTURE.md) | Contexto, camadas, dependências e sequência |
+| [Compatibilidade](docs/COMPATIBILITY.md) | Versões e contrato executável client/server |
 | [Operações](docs/OPERATIONS.md) | Preflight, probes, shutdown, containers e Kubernetes |
-| [Privacidade](docs/PRIVACY.md) | Inventário de dados, retenção, logs, tracing e processadores externos |
-| [Supply chain](docs/SUPPLY_CHAIN.pt-BR.md) | Política de dependências, confiança no CI, ameaças e exceções |
-| [Observabilidade](docs/LLM_OBSERVABILITY.md) | Configuração do OpenTelemetry e do Langfuse opcional |
-| [Desenvolvimento](docs/DEVELOPMENT.md) | Ambiente local, checks e workflow do container |
-| [Decisões de arquitetura](docs/adr/) | Justificativas e trade-offs das decisões materiais |
+| [Privacidade](docs/PRIVACY.md) | Dados, retenção, logs, tracing e processadores externos |
+| [Supply chain](docs/SUPPLY_CHAIN.pt-BR.md) | Dependências, confiança no CI, ameaças e exceções |
+| [Observabilidade](docs/LLM_OBSERVABILITY.md) | OpenTelemetry e Langfuse opcional |
+| [Desenvolvimento](docs/DEVELOPMENT.md) | Ambiente local, checks e container |
+| [Decisões](docs/adr/) | Justificativas e trade-offs |
 
-## Desenvolvimento
+## Testes e qualidade
 
 ```bash
 uv lock --check
@@ -204,16 +246,16 @@ uv run pytest
 uv run python scripts/quality_gate.py
 ```
 
-O quality gate é a definição de pronto. Use `--list` ou `--check NAME` para feedback local rápido
-e execute o gate completo antes de abrir um pull request.
+O quality gate é a definição de pronto e cobre lint, format, arquitetura, tipagem estrita,
+testes/cobertura, Bandit, auditoria de dependências, supply chain, governança e contratos
+vendorizados.
 
 ## Escopo e adoção em produção
 
 Este repositório é um template de referência, não um serviço de identidade hospedado. Um deployment
-concreto ainda deve fornecer terminação TLS, publicação de imagem imutável, entrega de secrets,
-registro específico do provider, network policy, planejamento de capacidade, ownership de
-monitoramento e validação real com o IdP. Os valores `.invalid` e identificadores zerados são
-placeholders e falham no preflight de produção.
+real ainda deve fornecer terminação TLS, publicação de imagem imutável, entrega de secrets,
+registro no provider, network policy, capacidade, ownership de monitoramento e validação real com o
+IdP. Valores `.invalid` e identificadores zerados são placeholders e falham no preflight.
 
 ## Licença
 

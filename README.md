@@ -8,61 +8,107 @@
 
 *[Leia em português](README.pt-BR.md)*
 
-> A production-minded OAuth 2.1 resource-server template for remote MCP: Microsoft Entra ID and
-> generic OIDC, fail-closed authorization, executable interoperability, and operational defaults
-> you can inspect before adopting.
+> A production-oriented OAuth 2.1 resource-server reference for remote MCP: Microsoft Entra ID and
+> generic OIDC, exact token/resource validation, fail-closed authorization, progressive scope
+> challenges, stateless MCP `2026-07-28`, and metadata-only OpenTelemetry evidence.
 
-Use it to start a secure MCP server without rebuilding token validation, scope enforcement,
-transport admission, observability, and deployment hygiene from scratch. It targets the MCP
-**2026-07-28** reference profile and pairs with
-[`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template) for a tested
-end-to-end implementation.
+Use this repository when the hard part is not "how do I expose an MCP tool?" but **how do I expose
+it without weakening identity, authorization, transport, and observability boundaries**. The server
+pairs with [`mcp-client-auth-template`](https://github.com/brunovicco/mcp-client-auth-template) for
+an executable end-to-end reference using synthetic identities and no production credentials.
 
-## Why this template
+## What this repository proves
 
-- **Start from a working security boundary.** The server validates externally issued tokens; it
-  never becomes an authorization server or handles user login.
-- **Support enterprise and standards-based identity.** Switch between Microsoft Entra ID and a
-  standards-compliant OIDC provider through configuration, without changing application code.
-- **Make authorization observable and testable.** Protected Resource Metadata, OAuth challenges,
-  progressive scopes, modern MCP request envelopes, and machine identity are executable contracts.
-- **Ship with operational discipline.** Production preflight, structured logs, metadata-only
-  tracing, health probes, hardened containers, Kubernetes examples, and graceful shutdown are
-  already represented.
+The paired executable path validates real resource-server behavior rather than configuration claims:
 
-## Who it is for
+- ✅ RFC 9728 Protected Resource Metadata is published by the resource server
+- ✅ RFC 8707 resource binding becomes an exact JWT audience boundary
+- ✅ issuer, signature, expiry, algorithm/key compatibility and caller type fail closed
+- ✅ delegated scopes and Entra application roles remain distinct authorization concepts
+- ✅ `403 insufficient_scope` is returned before dispatch for progressive authorization
+- ✅ wrong-audience tokens are rejected with `401`
+- ✅ protected tools stay hidden from anonymous catalog discovery
+- ✅ MCP `2026-07-28` stays stateless and does not mint `Mcp-Session-Id`
+- ✅ generic OIDC and Microsoft Entra ID share one application boundary without provider leakage
+- ✅ W3C trace context reaches the server while OAuth/MCP sensitive values stay out of telemetry
+- ✅ release artifacts, container evidence, SBOMs and provenance are validated by executable gates
 
-| Audience | What they can evaluate or reuse |
-| --- | --- |
-| Developers | A runnable reference for OAuth-protected MCP tools, provider adapters, tests, and local setup |
-| Tech leads and CTOs | Explicit trust boundaries, deployment assumptions, compatibility policy, privacy controls, and ADRs |
-| Engineering reviewers and recruiters | Concrete evidence of protocol design, secure coding, strict typing, CI automation, and production thinking |
-
-## At a glance
-
-| Dimension | Included contract |
-| --- | --- |
-| MCP | Python SDK `>=2.0,<3`, protocol profile `2026-07-28`, Streamable HTTP |
-| Identity | Microsoft Entra ID or generic OIDC; one authorization server per deployment |
-| Authorization | Issuer, audience, signature, expiry, delegated scopes, Entra application roles, progressive scope challenges |
-| Machine access | Official optional MCP OAuth Client Credentials extension for the deterministic generic-OIDC profile |
-| Runtime | Python 3.13/3.14, Uvicorn launcher, stateless transport, liveness/readiness probes |
-| Observability | Structured logs and opt-in metadata-only W3C tracing through `a2a-otel-kit` |
-| Delivery | Locked dependencies, multi-stage non-root image, Kubernetes security baseline, CI compatibility matrices |
-
-## Where it fits
+## Architecture
 
 ```mermaid
 flowchart LR
-    Client["MCP client"] -->|"Bearer token + MCP request"| Server["This MCP resource server"]
-    Client -->|"OAuth 2.1"| AS["Entra ID or OIDC authorization server"]
+    Client["MCP client"] -->|"OAuth 2.1 / OIDC"| AS["Authorization server<br/>Entra ID or generic OIDC"]
+    Client -->|"MCP 2026-07-28<br/>resource-bound bearer"| Admission["Transport admission"]
+    Admission --> AuthN["Token verification"]
+    AuthN --> AuthZ["Tool authorization"]
+    AuthZ --> Tools["MCP tools"]
+    Server["This resource server"] --- Admission
+
     Server -->|"OIDC discovery + cached JWKS"| AS
-    Server -.->|"metadata-only traces (opt-in)"| OTLP["OTLP collector"]
+    Server -.->|"W3C trace context + OTLP"| Collector["OpenTelemetry Collector"]
+    Collector --> Tempo["Tempo"]
+    Tempo --> Grafana["Grafana"]
 ```
 
-The authorization server owns login, consent, client registration, and token issuance. This
-server publishes RFC 9728 Protected Resource Metadata, validates the resulting access token, maps
-verified claims to a request-scoped principal, and authorizes the tool before dispatch.
+The authorization server owns login, consent, client registration and token issuance. This
+repository owns the protected resource: transport admission, metadata publication, access-token
+verification, request-scoped principal construction, tool authorization and dispatch.
+
+For layer boundaries and the detailed authorization sequence, see
+[Architecture](docs/ARCHITECTURE.md).
+
+## 5-minute verification
+
+The companion client owns the executable cross-repository reference flow. With both repositories
+cloned as siblings, verify this server directly from source:
+
+```bash
+cd ../mcp-client-auth-template
+./scripts/run_reference_demo.sh \
+  --server-root ../mcp-server-auth-template
+```
+
+The flow starts the real server from this checkout plus a deterministic local OIDC provider and
+proves CIMD-first Authorization Code + PKCE, authenticated `whoami`, bounded scope step-up,
+wrong-audience rejection and stateless MCP behavior.
+
+For the observable published-image proof:
+
+```bash
+cd ../mcp-client-auth-template
+./scripts/run_observability_demo.sh --keep
+```
+
+The observable flow verifies one distributed trace across client and server, positive Collector
+receipt, Tempo retrieval, Grafana provisioning and telemetry privacy assertions.
+
+See [Verification guide](docs/VERIFICATION.md) for the exact evidence boundary.
+
+### Visual proof
+
+The terminal proof below is captured from the source-level paired reference flow:
+
+![Server reference demo](docs/assets/server-reference-demo.gif)
+
+The trace screenshots are captured from a successful observable run and focus on
+`mcp-server-auth-template` spans:
+
+![Server distributed trace](docs/assets/server-observability-trace.png)
+
+![Server distributed trace detail](docs/assets/server-observability-trace-detail.png)
+
+## Authentication profiles
+
+| Profile | Intended use | Key behavior |
+| --- | --- | --- |
+| Entra delegated | Interactive enterprise users | Validates `scp`, tenant/application identifiers, issuer, audience and subject |
+| Entra application | Provider-specific app-only deployments | Requires explicit `idtyp=app`; keeps `roles` separate from delegated scopes |
+| Generic OIDC delegated | Standards-based interactive clients | Validates issuer/audience/signature/expiry and OAuth scopes |
+| Generic OIDC client credentials | Unattended services in the deterministic pair profile | Accepts pre-registered machine tokens and progressive OAuth scopes |
+
+Set `MCP_SERVER_AUTH_PROVIDER=entra` or `generic` to switch adapters. The example `whoami` tool
+returns the verified caller identity; `health` requires the additional `mcp:tools:health` scope and
+demonstrates a pre-dispatch `403 insufficient_scope` challenge.
 
 ## Quick start
 
@@ -87,7 +133,7 @@ Configure either the Entra or generic-OIDC block in `.env`, then point an MCP cl
 | `/livez` | Process liveness | Public, minimal response |
 | `/readyz` | MCP lifespan readiness | Public, minimal response |
 
-For production-style execution, use the explicit launcher:
+For production-style execution:
 
 ```bash
 uv run python -m mcp_server_auth_template.entrypoints.serve
@@ -95,104 +141,107 @@ uv run python -m mcp_server_auth_template.entrypoints.serve
 
 See [Production operations](docs/OPERATIONS.md) before exposing the service outside loopback.
 
-## Authentication profiles
-
-| Profile | Intended use | Key behavior |
-| --- | --- | --- |
-| Entra delegated | Interactive enterprise users | Validates `scp`, tenant/application identifiers, issuer, audience, and subject |
-| Entra application | Provider-specific app-only deployments | Requires explicit `idtyp=app`; keeps `roles` separate from delegated scopes |
-| Generic OIDC delegated | Standards-based interactive clients | Validates issuer/audience/signature/expiry and OAuth scopes |
-| Generic OIDC client credentials | Unattended services in the deterministic pair profile | Accepts pre-registered machine tokens and progressive OAuth scopes |
-
-Set `MCP_SERVER_AUTH_PROVIDER=entra` or `generic` to switch adapters. The example `whoami` tool
-returns the verified caller identity; `health` requires the additional `mcp:tools:health` scope
-and demonstrates a pre-dispatch `403 insufficient_scope` challenge.
-
-## Security posture
+## Security properties
 
 The implementation is deliberately fail closed:
 
-- exact issuer and audience validation, bounded clock checks, algorithm/key compatibility, and
+- exact issuer and audience validation, bounded clock checks, algorithm/key compatibility and
   cached JWKS refresh;
-- hardened discovery/JWKS egress against unsafe schemes, redirects, compression, oversized
-  bodies, private/reserved destinations, mixed DNS answers, and DNS rebinding;
-- Host, Origin, header, envelope, body-size, and concurrency admission before authentication and
-  tool dispatch;
+- hardened discovery/JWKS egress against unsafe schemes, redirects, compression, oversized bodies,
+  private/reserved destinations, mixed DNS answers and DNS rebinding;
+- Host, Origin, header, envelope, body-size and concurrency admission before authentication and tool
+  dispatch;
 - delegated and application identities remain distinct; extension negotiation never grants
   authorization by itself;
 - bearer tokens and decoded claims remain request-local and are never logged or persisted;
-- tracing excludes credentials, arbitrary headers and URLs, MCP arguments/results, bodies,
-  baggage, and exception text.
+- tracing excludes credentials, arbitrary headers and URLs, MCP arguments/results, bodies, baggage
+  and exception text.
 
 This is a transparent reference implementation, not a security certification. Read
 [Privacy and data handling](docs/PRIVACY.md) and the architecture decisions under
 [`docs/adr/`](docs/adr/) before adapting the boundary.
 
-## Engineering evidence
+## MCP `2026-07-28`
 
-- deterministic quality gate covering lint, format, strict Mypy, architecture, tests, coverage,
-  Bandit, dependency audit, and an executable supply-chain trust baseline;
-- SHA-pinned GitHub Actions, read-only permissions by default, isolated least-privilege
-  release write scopes, weekly controlled updates, and pull-request dependency/license review;
-- CycloneDX source/runtime inventories plus checksum-verified image vulnerability evidence and a
-  fail-closed, time-bounded exception gate;
-- allowlisted, byte-reproducible Python release artifacts with SHA-256 manifests and GitHub build
-  provenance attestations;
-- a tag-gated publication workflow that produces GitHub Releases with complete integrity
-  evidence, CycloneDX attestations, and a policy-approved GHCR image with provenance and
-  verification by immutable digest;
-- Python 3.13/3.14 against MCP SDK 2.0.0 and the latest compatible 2.x;
-- Entra/generic OIDC across production HTTPS and explicit IPv4/IPv6 loopback profiles;
-- canonical cross-repository contract plus a real 12-scenario OAuth/MCP E2E suite owned by the
-  companion client;
-- offline JWT fixtures: unit and contract tests use local keys and synthetic identities, never a
-  production IdP or real credential;
-- ADRs document security, protocol, operations, compatibility, and observability decisions.
+The paired templates exercise the modern stateless profile as executable behavior:
 
-## MCP 2026-07-28 compliance evidence
-
-The paired templates exercise the current stateless MCP profile as executable behavior rather than
-relying on a version claim alone:
-
-- `server/discover` and per-request `_meta` carry protocol version, client identity, and
-  capabilities without the legacy `initialize`/`initialized` handshake;
-- modern requests use `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name`; responses do not mint
-  `Mcp-Session-Id`;
-- RFC 9728 Protected Resource Metadata drives authorization-server discovery;
-- RFC 8707 `resource` binding is exercised across authorization and token requests, and the server
-  validates the resulting JWT audience exactly;
-- generic OIDC uses CIMD first with DCR only as a compatibility fallback, and authorization
-  responses validate `iss` per RFC 9207 before code redemption;
-- runtime `403 insufficient_scope` challenges preserve prior grants, request the complete missing
-  scope set, and allow only the bounded undispatched replay;
-- machine-to-machine access is opt-in through the official
-  `io.modelcontextprotocol/oauth-client-credentials` extension.
+- `server/discover` and per-request `_meta` carry protocol version, client identity and capabilities
+  without the legacy `initialize` / `initialized` handshake;
+- modern requests use `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name`;
+- responses do not mint `Mcp-Session-Id`;
+- Protected Resource Metadata drives authorization-server discovery;
+- RFC 8707 `resource` binds the access token audience exactly;
+- runtime `403 insufficient_scope` preserves prior grants and permits only one bounded replay of
+  the undispatched operation;
+- machine-to-machine access is opt-in through
+  `io.modelcontextprotocol/oauth-client-credentials`.
 
 See [Compatibility](docs/COMPATIBILITY.md) and the companion client's
-[cross-repository E2E evidence](https://github.com/brunovicco/mcp-client-auth-template/blob/main/docs/E2E.md)
-for the executable matrix.
+[cross-repository E2E evidence](https://github.com/brunovicco/mcp-client-auth-template/blob/main/docs/E2E.md).
 
 ## Observability
 
-`a2a-otel-kit` continues W3C trace context at the MCP ASGI boundary. Export is network-silent
-unless explicitly enabled with `A2A_OTEL_ENABLED=true` and a complete OTLP traces endpoint. Spans
-are metadata-only and sit inside hardened HTTP admission but outside authentication and tool
-dispatch. See [LLM and application observability](docs/LLM_OBSERVABILITY.md).
+`a2a-otel-kit` continues W3C trace context at the MCP ASGI boundary. Export remains network-silent
+unless `A2A_OTEL_ENABLED=true` and a complete OTLP traces endpoint are configured. Spans are
+metadata-only and sit inside hardened HTTP admission but outside authentication and tool dispatch.
 
-## Documentation map
+See [LLM and application observability](docs/LLM_OBSERVABILITY.md).
+
+## Engineering evidence
+
+- deterministic quality gate covering lint, format, strict Mypy, architecture, tests/coverage,
+  Bandit, dependency audit, supply-chain controls, governance and vendored contract validation;
+- SHA-pinned GitHub Actions with read-only permissions by default and isolated release authorities;
+- CycloneDX source/runtime inventories, complete vulnerability evidence and fail-closed exception
+  policy;
+- allowlisted byte-reproducible Python release artifacts with SHA-256 manifests and GitHub build
+  provenance;
+- policy-approved GHCR publication with immutable digest, provenance and SBOM attestations;
+- Python 3.13/3.14 against MCP SDK 2.0.0 and latest compatible 2.x;
+- offline JWT fixtures using local keys and synthetic identities;
+- ADRs documenting security, protocol, operations, compatibility, observability and supply-chain
+  decisions.
+
+## Demo vs production
+
+| Reference evidence | Production adoption |
+| --- | --- |
+| Synthetic local OIDC in companion demo | Enterprise authorization server with reviewed registration and consent |
+| Loopback/local reference networking | TLS-protected service networking and explicit proxy ownership |
+| Local Collector/Tempo/Grafana | Organization-managed telemetry pipeline and retention policy |
+| Synthetic signing keys and identities | Managed keys, secrets and provider-specific controls |
+| Reference `whoami` / `health` tools | Domain tools with explicit authorization policies and side-effect controls |
+
+The reference settings prove boundaries; they are not production defaults.
+
+## Repository structure
+
+```text
+src/                    resource-server implementation
+tests/                  unit, contract and security evidence
+scripts/                quality, governance and release automation
+docs/                   architecture, operations, privacy and security
+examples/                deployment/reference configuration
+.github/workflows/      CI, compatibility and release workflows
+```
+
+Local editor and coding-agent state is intentionally excluded from the public repository.
+
+## Documentation
 
 | Document | Use it for |
 | --- | --- |
-| [Architecture](docs/ARCHITECTURE.md) | Context, layers, dependency rules, and request sequence |
+| [Verification](docs/VERIFICATION.md) | Source-level and observable paired proof |
+| [Architecture](docs/ARCHITECTURE.md) | Context, layers, dependency rules and request sequence |
 | [Compatibility](docs/COMPATIBILITY.md) | Supported versions and executable client/server contract |
-| [Operations](docs/OPERATIONS.md) | Preflight, probes, shutdown, containers, and Kubernetes |
-| [Privacy](docs/PRIVACY.md) | Data inventory, retention, logging, tracing, and external processors |
-| [Supply chain](docs/SUPPLY_CHAIN.md) | Dependency policy, CI trust boundary, threats, and exceptions |
+| [Operations](docs/OPERATIONS.md) | Preflight, probes, shutdown, containers and Kubernetes |
+| [Privacy](docs/PRIVACY.md) | Data inventory, retention, logging, tracing and external processors |
+| [Supply chain](docs/SUPPLY_CHAIN.md) | Dependency policy, CI trust boundary, threats and exceptions |
 | [Observability](docs/LLM_OBSERVABILITY.md) | OpenTelemetry and optional Langfuse configuration |
-| [Development](docs/DEVELOPMENT.md) | Local environment, checks, and container workflow |
+| [Development](docs/DEVELOPMENT.md) | Local environment, checks and container workflow |
 | [Architecture decisions](docs/adr/) | Rationale and trade-offs behind material decisions |
 
-## Development
+## Testing and quality
 
 ```bash
 uv lock --check
@@ -201,15 +250,16 @@ uv run pytest
 uv run python scripts/quality_gate.py
 ```
 
-The quality gate is the definition of done. Use `--list` or `--check NAME` for focused local
-feedback, then run the complete gate before opening a pull request.
+The quality gate is the definition of done. It covers lint, format, architecture, strict typing,
+tests/coverage, Bandit, dependency audit, supply-chain controls, governance and vendored contract
+validation.
 
 ## Scope and production adoption
 
-This repository is a reference template, not a hosted identity service. A concrete deployment
-must still provide TLS termination, immutable image publishing, secret delivery, provider-specific
-registration, network policy, capacity planning, monitoring ownership, and live IdP validation.
-The checked-in `.invalid` and all-zero values are placeholders and fail production preflight.
+This repository is a reference template, not a hosted identity service. A concrete deployment must
+still provide TLS termination, immutable image publishing, secret delivery, provider-specific
+registration, network policy, capacity planning, monitoring ownership and live IdP validation.
+Checked-in `.invalid` and all-zero values are placeholders and fail production preflight.
 
 ## License
 

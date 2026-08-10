@@ -66,6 +66,31 @@ domain      -> no outer layer
 - Idempotency: required for externally visible side effects.
 - Packaging: containerized via the repo `Dockerfile` (multi-stage, uv-based); the runtime `CMD` is defined per project.
 
+## Executable paired topology
+
+The companion client owns the end-to-end harness, while this repository owns the resource-server
+runtime that the harness starts or consumes by immutable image digest:
+
+```mermaid
+flowchart LR
+    User["Synthetic user / workload"] --> Client["mcp-client-auth-template"]
+    Client -->|"OAuth 2.1 / OIDC"| OIDC["Synthetic or enterprise authorization server"]
+    Client -->|"MCP 2026-07-28<br/>resource-bound bearer"| Admission["HTTP admission"]
+    Admission --> Verify["JWT verification"]
+    Verify --> Authorize["Tool authorization"]
+    Authorize --> Tools["whoami / health"]
+
+    Client -.->|"traceparent"| Admission
+    Admission -.->|"OTLP"| Collector["OpenTelemetry Collector"]
+    Client -.->|"OTLP"| Collector
+    Collector --> Tempo["Tempo"]
+    Tempo --> Grafana["Grafana"]
+```
+
+For a source-level proof, the client harness starts this checkout directly. For observability
+evidence, the containerized reference flow consumes the published server image by immutable digest.
+See `docs/VERIFICATION.md`.
+
 ## Diagrams
 
 Resource-server bearer-token flow (the only critical flow this service owns; token issuance

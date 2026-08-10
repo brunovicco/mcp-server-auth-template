@@ -7,15 +7,24 @@ uv sync --frozen --all-groups
 ```
 
 `a2a-otel-kit[mcp]` is a core dependency because the ASGI entrypoint always composes its
-metadata-only tracing middleware. Export remains network-silent unless `A2A_OTEL_ENABLED=true`
-and an OTLP endpoint are configured. Tests use disabled or in-memory telemetry and never require a
-real collector.
+metadata-only tracing middleware. Export remains network-silent unless `A2A_OTEL_ENABLED=true` and a
+complete OTLP endpoint are configured. Tests use disabled or in-memory telemetry and do not require
+a real collector.
 
 ## Run checks
 
 ```bash
 uv run python scripts/quality_gate.py
 ```
+
+For focused feedback:
+
+```bash
+uv run python scripts/quality_gate.py --list
+uv run python scripts/quality_gate.py --check tests
+```
+
+The complete gate remains the definition of done.
 
 ## Container
 
@@ -27,34 +36,34 @@ docker run --rm \
   mcp-server-auth-template
 ```
 
-`Dockerfile` is a multi-stage, uv-based build: a `builder` stage installs the locked
-dependencies and builds the package, then only the resulting virtualenv and source are copied
-into a slim, non-root runtime image. The shipped `CMD` runs the real ASGI entrypoint
-(`uvicorn mcp_server_auth_template.entrypoints.mcp_server:create_app --factory --host 0.0.0.0
---port 8000`); provider configuration (`MCP_SERVER_*` variables, see `.env.example`) is supplied
-at container-run time via the environment, never baked into the image. Adjust `.dockerignore` if
-new top-level files or directories need to be excluded from the build context.
+`Dockerfile` is a multi-stage uv-based build. The builder installs the locked environment and the
+runtime executes as a non-root user. Provider configuration is supplied at runtime via environment
+variables and is never baked into the image.
 
-The container command above expects a local `.env` with safe development values. If a development
-OIDC provider runs on the Docker host, do not configure it as container-local `localhost`; expose it
-through a deliberate host address such as `host.docker.internal` where supported, or place both
-services on the same Docker network.
+The container command expects a local `.env` with safe development values. If a development OIDC
+provider runs on the Docker host, do not configure it as container-local `localhost`; use a
+deliberate host address such as `host.docker.internal` where supported, or place both services on
+the same Docker network.
 
 ## Local configuration
 
-Copy `.env.example` to `.env` for local development and replace only the provider/profile values
-you need. Docker's `--env-file` passes the same variable names into the container. Never commit
-`.env` or real credentials.
+Copy `.env.example` to `.env` and replace only the provider/profile values required for local
+development. Never commit `.env`, signing keys, bearer tokens or real credentials.
 
-## Codex
+## Cross-repository verification
 
-- Run `/status` to inspect the active project and configuration.
-- Run `/hooks` to inspect configured hooks.
-- Run `codex --version` from the shell for an installation check.
-- Use `$plan-change` before complex work.
-- Use `$quality-gate` before completion.
-- Use `$prepare-pr` to produce a reviewable PR description.
+With the companion client cloned beside this repository:
 
-Codex discovers durable project guidance in `AGENTS.md`, workflows in `.agents/skills/`, and
-trusted project configuration and hooks under `.codex/`. Skills do not silently delegate work;
-the active agent follows their checked-in workflow and the user's requested scope.
+```bash
+cd ../mcp-client-auth-template
+./scripts/run_reference_demo.sh \
+  --server-root ../mcp-server-auth-template
+```
+
+See `docs/VERIFICATION.md` for source-level and observable evidence.
+
+## Local tooling
+
+Personal editor, coding-agent and automation configuration belongs in local user/project state and
+is intentionally excluded from version control. The public repository contains only durable
+project-owned runtime, tests, CI, policy and documentation.
