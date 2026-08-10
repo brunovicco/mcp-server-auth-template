@@ -21,7 +21,10 @@ uv run python scripts/quality_gate.py
 
 ```bash
 docker build -t mcp-server-auth-template .
-docker run --rm mcp-server-auth-template
+docker run --rm \
+  --env-file .env \
+  -p 8000:8000 \
+  mcp-server-auth-template
 ```
 
 `Dockerfile` is a multi-stage, uv-based build: a `builder` stage installs the locked
@@ -32,9 +35,16 @@ into a slim, non-root runtime image. The shipped `CMD` runs the real ASGI entryp
 at container-run time via the environment, never baked into the image. Adjust `.dockerignore` if
 new top-level files or directories need to be excluded from the build context.
 
+The container command above expects a local `.env` with safe development values. If a development
+OIDC provider runs on the Docker host, do not configure it as container-local `localhost`; expose it
+through a deliberate host address such as `host.docker.internal` where supported, or place both
+services on the same Docker network.
+
 ## Local configuration
 
-Copy `.env.example` only when the application supports local dotenv loading. Never commit `.env` or real credentials.
+Copy `.env.example` to `.env` for local development and replace only the provider/profile values
+you need. Docker's `--env-file` passes the same variable names into the container. Never commit
+`.env` or real credentials.
 
 ## Codex
 
