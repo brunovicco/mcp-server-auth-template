@@ -6,17 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-09
+
 ### Added
 
+- Added an executable supply-chain trust baseline with SHA-pinned GitHub Actions, explicit
+  least-privilege workflow permissions, controlled Dependabot updates, and dependency/license
+  review.
+- Added CycloneDX source and production-image inventories, checksum-verified Syft/Grype tooling,
+  complete vulnerability evidence, and a fail-closed policy for actionable findings with narrow,
+  expiring exceptions.
+- Added allowlisted, byte-reproducible wheel and sdist builds with exact build constraints,
+  SHA-256 manifests, and GitHub build-provenance attestations.
 - Added tag-gated GitHub Release publication with reproducible Python packages, complete checksum
   coverage, CycloneDX inventories, vulnerability evidence, and a machine-readable release manifest.
 - Added GHCR publication for the policy-approved production image, identified by immutable digest
   and accompanied by build-provenance and SBOM attestations.
 
+### Changed
+
+- Public package version is now `0.5.0`.
+- Release publication is split across isolated artifact-build, container-publication, and GitHub
+  Release jobs; PyPI publication remains out of scope.
+- Existing GHCR version and commit tags are never overwritten; a partial publication requires a
+  new version rather than reusing a partially published version.
+
+### Fixed
+
+- Made the checksum-corruption regression test deterministic so release-integrity failures are
+  exercised reliably.
+
 ### Security
 
-- Isolated attestation, registry, and GitHub Release write authority across separate jobs and made
-  vulnerability-policy approval a prerequisite for GHCR authentication and publication.
+- GHCR authentication happens only after the vulnerability policy approves the locally built
+  production image.
+- Attestation, registry, and GitHub Release write authority are isolated into narrowly scoped jobs.
+- Release builds fail closed on version/tag mismatch, non-reproducible artifacts, unexpected
+  archive contents, unsafe paths, checksum drift, stale or expired vulnerability exceptions, and
+  release-bundle inconsistencies.
 
 ## [0.4.0] - 2026-08-09
 
@@ -99,7 +126,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Raw bearer tokens and full identity-provider claims are excluded from the application principal
   and security audit surface.
 
-[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/brunovicco/mcp-server-auth-template/releases/tag/v0.3.0
 [0.2.0]: https://github.com/brunovicco/mcp-server-auth-template/releases/tag/v0.2.0
