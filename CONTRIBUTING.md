@@ -30,6 +30,7 @@ this passes clean; CI runs the same gate.
 
 ## Agent-assisted contributions
 
-If you're using Claude Code, Codex, or a similar tool against this repo, it should already pick
-up `CLAUDE.md` and `AGENTS.md` for project-specific conventions and the completion bar. Follow
-those over generic defaults.
+If you're using Claude Code, Codex, or a similar tool against this repo, follow the durable
+project guidance in `AGENTS.md`, the checked-in workflows under `.agents/skills/`, and trusted
+project configuration under `.codex/`. These project-owned instructions take precedence over
+generic defaults.
