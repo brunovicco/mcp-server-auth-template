@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Added a server-focused verification guide and visual-evidence slots backed by the companion
+  executable reference harness.
+- Added public-repository hygiene regression coverage preventing local coding-agent state from
+  returning to the tracked tree.
+
+### Changed
+
+- Reworked the EN/PT-BR landing pages around resource-server proof, security boundaries,
+  source-level verification, observable evidence and explicit demo-vs-production limits.
+- Made contributor/development guidance tool-agnostic and removed the Codex-only MCP-config check
+  from the project quality gate.
+- Removed checked-in coding-agent/Codex scaffolding and development-only MCP consumer configuration
+  from the public repository.
+
 ## [0.5.0] - 2026-08-09
 
 ### Added
