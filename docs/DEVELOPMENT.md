@@ -28,17 +28,36 @@ The complete gate remains the definition of done.
 
 ## Container
 
+Native host-architecture build:
+
 ```bash
-docker build -t mcp-server-auth-template .
+docker buildx build --load -t mcp-server-auth-template:local .
+```
+
+Explicit Apple Silicon / ARM64 build:
+
+```bash
+docker buildx build --platform linux/arm64 --load -t mcp-server-auth-template:arm64 .
+```
+
+Explicit Windows Docker Desktop / x86_64 build:
+
+```bash
+docker buildx build --platform linux/amd64 --load -t mcp-server-auth-template:amd64 .
+```
+
+Run the locally loaded image:
+
+```bash
 docker run --rm \
   --env-file .env \
   -p 8000:8000 \
-  mcp-server-auth-template
+  mcp-server-auth-template:local
 ```
 
-`Dockerfile` is a multi-stage uv-based build. The builder installs the locked environment and the
-runtime executes as a non-root user. Provider configuration is supplied at runtime via environment
-variables and is never baked into the image.
+`Dockerfile` is a multi-stage uv-based build targeting both supported Linux architectures. The
+builder installs the locked environment and the runtime executes as a non-root user. Provider
+configuration is supplied at runtime via environment variables and is never baked into the image.
 
 The container command expects a local `.env` with safe development values. If a development OIDC
 provider runs on the Docker host, do not configure it as container-local `localhost`; use a
