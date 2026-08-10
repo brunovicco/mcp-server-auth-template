@@ -6,12 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-10
+
 ### Added
 
-- Added a server-focused verification guide and visual-evidence slots backed by the companion
+- Added a server-focused verification guide and real visual evidence backed by the companion
   executable reference harness.
 - Added public-repository hygiene regression coverage preventing local coding-agent state from
   returning to the tracked tree.
+- Added native `linux/amd64` and `linux/arm64` container publication with exact platform evidence.
+- Added ADR-0023 documenting the scan-before-publish multi-platform release boundary.
 
 ### Changed
 
@@ -21,6 +25,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   from the project quality gate.
 - Removed checked-in coding-agent/Codex scaffolding and development-only MCP consumer configuration
   from the public repository.
+- Public package version is now `0.6.0`.
+- Secure container publication now produces one OCI index for both supported platforms, with
+  immutable architecture-specific version and commit aliases.
+- GitHub Releases now use curated `.github/release-notes/v0.6.0.md` notes.
+
+### Security
+
+- AMD64 and ARM64 production images are independently inventoried, scanned and policy-approved
+  before GHCR authentication.
+- The exact scanned local platform images are pushed; publication performs no post-scan rebuild.
+- `image-platforms.json` binds the final OCI index to the exact scanned platform digests and the
+  release validator rejects platform drift.
+- The final index receives build provenance and each platform manifest receives its own CycloneDX
+  SBOM attestation.
 
 ## [0.5.0] - 2026-08-09
 
@@ -146,7 +164,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Raw bearer tokens and full identity-provider claims are excluded from the application principal
   and security audit surface.
 
-[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/brunovicco/mcp-server-auth-template/releases/tag/v0.3.0
