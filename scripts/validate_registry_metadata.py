@@ -42,7 +42,10 @@ def _load_json(path: Path) -> dict[str, Any]:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValidationError(f"could not load {path}: {exc}") from exc
-    _require(isinstance(value, dict), f"{path} must contain a JSON object")
+
+    if not isinstance(value, dict):
+        raise ValidationError(f"{path} must contain a JSON object")
+
     return value
 
 
@@ -52,72 +55,137 @@ def _project_version(path: Path) -> str:
             project = tomllib.load(handle)
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise ValidationError(f"could not load {path}: {exc}") from exc
+
     value = project.get("project")
-    _require(isinstance(value, dict), "pyproject.toml must contain [project]")
+
+    if not isinstance(value, dict):
+        raise ValidationError("pyproject.toml must contain [project]")
+
     version = value.get("version")
-    _require(isinstance(version, str) and bool(version), "project.version must be a string")
+
+    if not isinstance(version, str) or not version:
+        raise ValidationError("project.version must be a string")
+
     return version
 
 
 def _validate_repository(server: dict[str, Any]) -> None:
     repository = server.get("repository")
-    _require(isinstance(repository, dict), "repository metadata is required")
-    _require(repository.get("url") == REPOSITORY_URL, "repository.url must match the public repo")
-    _require(repository.get("source") == "github", "repository.source must be github")
+
+    if not isinstance(repository, dict):
+        raise ValidationError("repository metadata is required")
+
+    _require(
+        repository.get("url") == REPOSITORY_URL,
+        "repository.url must match the public repo",
+    )
+    _require(
+        repository.get("source") == "github",
+        "repository.source must be github",
+    )
     _require(
         repository.get("id") == REPOSITORY_ID,
         "repository.id must match the stable GitHub repo ID",
     )
 
 
-def _validate_runtime_arguments(package: dict[str, Any]) -> None:
+def _validate_runtime_arguments(
+    package: dict[str, Any],
+) -> None:
     args = package.get("runtimeArguments")
-    _require(isinstance(args, list), "OCI package runtimeArguments are required")
+
+    if not isinstance(args, list):
+        raise ValidationError("OCI package runtimeArguments are required")
+
+    expected_values: dict[str, str | None] = {
+        "--read-only": None,
+        "--tmpfs": (
+            "/tmp:rw,noexec,nosuid,nodev,size=16m"  # noqa: S108
+        ),
+        "--cap-drop": "ALL",
+        "--security-opt": "no-new-privileges:true",
+        "--publish": "127.0.0.1:8000:8000",
+    }
+
     by_name: dict[str, dict[str, Any]] = {}
+
     for item in args:
-        _require(isinstance(item, dict), "runtimeArguments entries must be objects")
+        if not isinstance(item, dict):
+            raise ValidationError("runtimeArguments entries must be objects")
+
         name = item.get("name")
-        _require(isinstance(name, str), "runtimeArguments entries must have string names")
+
+        if not isinstance(name, str):
+            raise ValidationError("runtimeArguments entries must have string names")
+
         by_name[name] = item
 
-        expected_values: dict[str, str | None] = {
-            "--read-only": None,
-            "--tmpfs": "/tmp:rw,noexec,nosuid,nodev,size=16m",  # noqa: S108
-            "--cap-drop": "ALL",
-            "--security-opt": "no-new-privileges:true",
-            "--publish": "127.0.0.1:8000:8000",
-        }
-    _require(set(by_name) == set(expected_values), "runtime hardening arguments drifted")
+    _require(
+        set(by_name) == set(expected_values),
+        "runtime hardening arguments drifted",
+    )
+
     for name, expected in expected_values.items():
-        _require(by_name[name].get("type") == "named", f"{name} must be a named argument")
+        _require(
+            by_name[name].get("type") == "named",
+            f"{name} must be a named argument",
+        )
+
         if expected is None:
-            _require("value" not in by_name[name], f"{name} must remain a valueless flag")
+            _require(
+                "value" not in by_name[name],
+                f"{name} must remain a valueless flag",
+            )
         else:
-            _require(by_name[name].get("value") == expected, f"{name} value drifted")
+            _require(
+                by_name[name].get("value") == expected,
+                f"{name} value drifted",
+            )
 
 
 def _validate_environment(package: dict[str, Any]) -> None:
     values = package.get("environmentVariables")
-    _require(isinstance(values, list), "OCI package environmentVariables are required")
+
+    if not isinstance(values, list):
+        raise ValidationError("OCI package environmentVariables are required")
+
     by_name: dict[str, dict[str, Any]] = {}
+
     for item in values:
-        _require(isinstance(item, dict), "environmentVariables entries must be objects")
+        if not isinstance(item, dict):
+            raise ValidationError("environmentVariables entries must be objects")
+
         name = item.get("name")
-        _require(isinstance(name, str), "environmentVariables entries must have string names")
-        _require(name not in by_name, f"duplicate environment variable metadata: {name}")
+
+        if not isinstance(name, str):
+            raise ValidationError("environmentVariables entries must have string names")
+
+        _require(
+            name not in by_name,
+            f"duplicate environment variable metadata: {name}",
+        )
+
         by_name[name] = item
 
-    for name in ("MCP_SERVER_RESOURCE_SERVER_URL", "MCP_SERVER_AUTH_PROVIDER"):
-        _require(by_name.get(name, {}).get("isRequired") is True, f"{name} must remain required")
+    for name in (
+        "MCP_SERVER_RESOURCE_SERVER_URL",
+        "MCP_SERVER_AUTH_PROVIDER",
+    ):
+        _require(
+            by_name.get(name, {}).get("isRequired") is True,
+            f"{name} must remain required",
+        )
 
     _require(
         by_name.get("MCP_SERVER_AUTH_PROVIDER", {}).get("choices") == ["entra", "generic"],
-        "MCP_SERVER_AUTH_PROVIDER choices must remain entra/generic",
+        ("MCP_SERVER_AUTH_PROVIDER choices must remain entra/generic"),
     )
+
     _require(
         by_name.get("MCP_SERVER_REQUIRED_SCOPES", {}).get("default") == '["mcp:tools:call"]',
         "baseline scope metadata drifted",
     )
+
     _require(
         by_name.get("MCP_SERVER_TRANSPORT_ALLOWED_HOSTS", {}).get("default")
         == '["127.0.0.1:8000"]',
@@ -131,38 +199,78 @@ def _validate_environment(package: dict[str, Any]) -> None:
         "MCP_SERVER_GENERIC_ISSUER_URL": "generic",
         "MCP_SERVER_GENERIC_AUDIENCE": "generic",
     }
+
     for name, provider in conditional.items():
         item = by_name.get(name)
-        _require(isinstance(item, dict), f"missing conditional provider metadata: {name}")
+
+        if not isinstance(item, dict):
+            raise ValidationError(f"missing conditional provider metadata: {name}")
+
         description = item.get("description")
+
         _require(
             isinstance(description, str) and f"AUTH_PROVIDER={provider}" in description,
             f"{name} must document its provider condition",
         )
-        _require(item.get("isRequired") is not True, f"{name} must not be globally required")
+
+        _require(
+            item.get("isRequired") is not True,
+            f"{name} must not be globally required",
+        )
 
 
-def _validate_package(server: dict[str, Any], version: str) -> None:
+def _validate_package(
+    server: dict[str, Any],
+    version: str,
+) -> None:
     packages = server.get("packages")
-    _require(
-        isinstance(packages, list) and len(packages) == 1,
-        "exactly one OCI package is expected",
-    )
+
+    if not isinstance(packages, list) or len(packages) != 1:
+        raise ValidationError("exactly one OCI package is expected")
+
     package = packages[0]
-    _require(isinstance(package, dict), "packages[0] must be an object")
-    _require(package.get("registryType") == "oci", "package registryType must be oci")
-    _require(package.get("runtimeHint") == "docker", "OCI package runtimeHint must be docker")
-    _require(package.get("version") == version, "package.version must match server.version")
+
+    if not isinstance(package, dict):
+        raise ValidationError("packages[0] must be an object")
+
+    _require(
+        package.get("registryType") == "oci",
+        "package registryType must be oci",
+    )
+    _require(
+        package.get("runtimeHint") == "docker",
+        "OCI package runtimeHint must be docker",
+    )
+    _require(
+        package.get("version") == version,
+        "package.version must match server.version",
+    )
 
     identifier = package.get("identifier")
     expected_identifier = f"{IMAGE_PREFIX}{version}"
-    _require(identifier == expected_identifier, "OCI identifier must use the immutable release tag")
-    _require("latest" not in expected_identifier.lower(), "latest is forbidden")
+
+    _require(
+        identifier == expected_identifier,
+        "OCI identifier must use the immutable release tag",
+    )
+    _require(
+        "latest" not in expected_identifier.lower(),
+        "latest is forbidden",
+    )
 
     transport = package.get("transport")
-    _require(isinstance(transport, dict), "package transport is required")
-    _require(transport.get("type") == "streamable-http", "transport must be streamable-http")
-    _require(transport.get("url") == TRANSPORT_URL, "transport URL must remain loopback /mcp")
+
+    if not isinstance(transport, dict):
+        raise ValidationError("package transport is required")
+
+    _require(
+        transport.get("type") == "streamable-http",
+        "transport must be streamable-http",
+    )
+    _require(
+        transport.get("url") == TRANSPORT_URL,
+        "transport URL must remain loopback /mcp",
+    )
 
     _validate_runtime_arguments(package)
     _validate_environment(package)
@@ -240,7 +348,10 @@ def _validate_dockerfile(path: Path) -> None:
 
 def _validate_image_label(image: str) -> None:
     docker = shutil.which("docker")
-    _require(docker is not None, "docker executable is required for image-label validation")
+
+    if docker is None:
+        raise ValidationError("docker executable is required for image-label validation")
+
     command = (
         docker,
         "image",
@@ -249,9 +360,23 @@ def _validate_image_label(image: str) -> None:
         f'{{{{ index .Config.Labels "{MCP_LABEL}" }}}}',
         image,
     )
-    result = subprocess.run(command, check=False, capture_output=True, text=True)  # noqa: S603
-    _require(result.returncode == 0, f"could not inspect image {image}: {result.stderr.strip()}")
-    _require(result.stdout.strip() == SERVER_NAME, f"image {image} has wrong MCP ownership label")
+
+    result = subprocess.run(  # noqa: S603
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    _require(
+        result.returncode == 0,
+        (f"could not inspect image {image}: {result.stderr.strip()}"),
+    )
+
+    _require(
+        result.stdout.strip() == SERVER_NAME,
+        f"image {image} has wrong MCP ownership label",
+    )
 
 
 def validate(root: Path, *, release_tag: str | None = None, image: str | None = None) -> None:
