@@ -52,7 +52,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1
 
 LABEL org.opencontainers.image.source="https://github.com/brunovicco/mcp-server-auth-template" \
-      org.opencontainers.image.title="mcp-server-auth-template"
+      org.opencontainers.image.title="mcp-server-auth-template" \
+      io.modelcontextprotocol.server.name="io.github.brunovicco/mcp-server-auth-template"
 
 USER app
 

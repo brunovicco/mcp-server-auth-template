@@ -141,6 +141,17 @@ uv run python -m mcp_server_auth_template.entrypoints.serve
 
 Leia [Operações](docs/OPERATIONS.md) antes de expor o serviço fora de loopback.
 
+## Preparação para o Official MCP Registry
+
+O P2.1 prepara este repositório para o namespace
+`io.github.brunovicco/mcp-server-auth-template` no Official MCP Registry. O `server.json` descreve a
+imagem pública do GHCR como pacote OCI usando o transporte real `streamable-http`; ele não declara
+um endpoint hospedado em `remotes`. A versão `0.6.1` fica reservada como a primeira versão imutável
+da imagem com o label de ownership `io.modelcontextprotocol.server.name` exigido pelo Registry.
+
+A publicação no Registry continua separada desta mudança de readiness e só acontece depois que o
+pipeline seguro validar o OCI index final. Veja [Official MCP Registry](docs/REGISTRY.pt-BR.md).
+
 ## Propriedades de segurança
 
 A implementação é intencionalmente fail-closed:

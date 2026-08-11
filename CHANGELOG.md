@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-10
+
+### Added
+
+- Added Official MCP Registry metadata for the `io.github.brunovicco/mcp-server-auth-template`
+  namespace using the real GHCR OCI + Streamable HTTP package profile.
+- Added checksum-verified `mcp-publisher` validation, project-owned Registry invariants, EN/PT-BR
+  Registry documentation and ADR 0024.
+
+### Changed
+
+- Prepared project version `0.6.1` as the first immutable image version carrying the Registry
+  ownership metadata required for OCI publication.
+
+### Security
+
+- The production image now carries `io.modelcontextprotocol.server.name`, bound exactly to
+  `server.json.name`.
+- CI and release workflows fail closed on namespace, repository, transport, package/version,
+  publisher pin, release-tag or image-label drift before GHCR publication.
+
 ## [0.6.0] - 2026-08-10
 
 ### Added

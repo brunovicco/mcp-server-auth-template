@@ -1,0 +1,102 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.brunovicco/mcp-server-auth-template",
+  "title": "MCP Server Auth Template",
+  "description": "OAuth 2.1/OIDC resource-server reference for secure MCP authorization",
+  "websiteUrl": "https://github.com/brunovicco/mcp-server-auth-template",
+  "repository": {
+    "url": "https://github.com/brunovicco/mcp-server-auth-template",
+    "source": "github",
+    "id": "1327263126"
+  },
+  "version": "0.6.1",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/brunovicco/mcp-server-auth-template:v0.6.1",
+      "version": "0.6.1",
+      "runtimeHint": "docker",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://127.0.0.1:8000/mcp"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--read-only"
+        },
+        {
+          "type": "named",
+          "name": "--tmpfs",
+          "value": "/tmp:rw,noexec,nosuid,nodev,size=16m"
+        },
+        {
+          "type": "named",
+          "name": "--cap-drop",
+          "value": "ALL"
+        },
+        {
+          "type": "named",
+          "name": "--security-opt",
+          "value": "no-new-privileges:true"
+        },
+        {
+          "type": "named",
+          "name": "--publish",
+          "value": "127.0.0.1:8000:8000"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "MCP_SERVER_RESOURCE_SERVER_URL",
+          "description": "Protected-resource URL advertised by this deployment",
+          "isRequired": true
+        },
+        {
+          "name": "MCP_SERVER_AUTH_PROVIDER",
+          "description": "Authorization-server adapter to use",
+          "choices": [
+            "entra",
+            "generic"
+          ],
+          "isRequired": true
+        },
+        {
+          "name": "MCP_SERVER_REQUIRED_SCOPES",
+          "description": "JSON array of baseline delegated OAuth scopes",
+          "default": "[\"mcp:tools:call\"]"
+        },
+        {
+          "name": "MCP_SERVER_TRANSPORT_ALLOWED_HOSTS",
+          "description": "Additional exact Host values accepted by the local container transport",
+          "default": "[\"127.0.0.1:8000\"]"
+        },
+        {
+          "name": "MCP_SERVER_ENTRA_TENANT_ID",
+          "description": "Required when MCP_SERVER_AUTH_PROVIDER=entra"
+        },
+        {
+          "name": "MCP_SERVER_ENTRA_AUDIENCE",
+          "description": "Required when MCP_SERVER_AUTH_PROVIDER=entra"
+        },
+        {
+          "name": "MCP_SERVER_ENTRA_APPLICATION_ID_URI",
+          "description": "Required when MCP_SERVER_AUTH_PROVIDER=entra"
+        },
+        {
+          "name": "MCP_SERVER_GENERIC_ISSUER_URL",
+          "description": "Required when MCP_SERVER_AUTH_PROVIDER=generic"
+        },
+        {
+          "name": "MCP_SERVER_GENERIC_AUDIENCE",
+          "description": "Required when MCP_SERVER_AUTH_PROVIDER=generic"
+        },
+        {
+          "name": "MCP_SERVER_GENERIC_JWKS_ALLOWED_ORIGINS",
+          "description": "Optional JSON array of explicitly trusted cross-origin JWKS origins",
+          "default": "[]"
+        }
+      ]
+    }
+  ]
+}
