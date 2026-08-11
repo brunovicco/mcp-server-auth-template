@@ -67,6 +67,7 @@ def configured_checks(root: Path) -> list[Check]:
         Check("architecture", (sys.executable, "scripts/validate_architecture.py")),
         Check("supply-chain", (sys.executable, "scripts/validate_supply_chain.py")),
         Check("governance", (sys.executable, "scripts/governance_gate.py")),
+        Check("registry", (sys.executable, "scripts/validate_registry_metadata.py")),
         Check(
             "loop-schema-vendor",
             (sys.executable, "scripts/validate_loop_schema_vendor.py"),

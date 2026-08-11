@@ -35,6 +35,16 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --all-groups
 
+      - name: Install checksum-verified mcp-publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          publisher="$(bash scripts/install_mcp_publisher.sh "${RUNNER_TEMP}/mcp-publisher")"
+          dirname "$publisher" >> "$GITHUB_PATH"
+
+      - name: Validate Official MCP Registry schema and semantics
+        run: mcp-publisher validate server.json
+
       - name: Validate production preflight contract
         env:
           APP_ENV: production
@@ -63,6 +73,11 @@ jobs:
 
       - name: Build production image
         run: docker build --tag mcp-server-auth-template:ci .
+
+      - name: Validate MCP Registry image ownership
+        run: |
+          python scripts/validate_registry_metadata.py \
+            --image mcp-server-auth-template:ci
 
       - name: Smoke hardened runtime
         shell: bash
