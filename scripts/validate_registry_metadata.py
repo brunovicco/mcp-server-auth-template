@@ -241,10 +241,15 @@ def _validate_package(
         package.get("runtimeHint") == "docker",
         "OCI package runtimeHint must be docker",
     )
-    _require(
-        package.get("version") == version,
-        "package.version must match server.version",
-    )
+    for forbidden in (
+        "registryBaseUrl",
+        "version",
+        "fileSha256",
+    ):
+        _require(
+            forbidden not in package,
+            f"OCI package must not declare {forbidden}",
+        )
 
     identifier = package.get("identifier")
     expected_identifier = f"{IMAGE_PREFIX}{version}"
