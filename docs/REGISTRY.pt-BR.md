@@ -17,10 +17,15 @@ Os valores abaixo devem evoluir juntos:
 ```text
 pyproject.toml project.version
 server.json version
-server.json packages[0].version
-tag OCI v<version>
+tag do identifier OCI v<version>
 tag Git v<version>
 ```
+
+Para `registryType: "oci"`, `packages[].version` deve ser omitido. A identidade da versão OCI fica
+codificada somente no `identifier` canônico, por exemplo
+`ghcr.io/brunovicco/mcp-server-auth-template:v0.6.2`.
+
+`registryBaseUrl` e `fileSha256` também ficam intencionalmente ausentes do metadata OCI.
 
 A tag `latest` nunca é usada. O workflow seguro de release resolve a tag versionada para o digest
 imutável do OCI index multiarch final e registra esse digest como evidência da release.
@@ -80,8 +85,12 @@ execução.
 Para uma tag de release:
 
 ```bash
-uv run python scripts/validate_registry_metadata.py --release-tag v0.6.1
+uv run python scripts/validate_registry_metadata.py --release-tag v0.6.2
 ```
 
-A publicação fica deliberadamente fora desta etapa. A primeira publicação no Registry só acontece
-depois que a release OCI segura `v0.6.1` estiver pública e validada independentemente.
+A automação de publicação continua deliberadamente fora desta etapa. A primeira tentativa manual com
+`v0.6.1` revelou uma regra específica do backend OCI mais restritiva que o schema genérico de
+`server.json`: pacotes OCI devem codificar sua versão somente no `identifier`.
+
+A primeira publicação bem-sucedida no Registry, portanto, só acontece depois que a release OCI
+corrigida `v0.6.2` estiver pública e validada independentemente.

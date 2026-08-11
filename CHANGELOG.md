@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-08-11
+
+### Fixed
+
+- Removed `packages[0].version` from the Official MCP Registry OCI metadata. The Registry backend
+  requires OCI version identity to live exclusively in the canonical image `identifier`.
+- Extended project-owned OCI Registry validation to reject `registryBaseUrl`, `version` and
+  `fileSha256`, matching the backend-specific `ValidateOCI` contract.
+
+### Changed
+
+- Advanced the Registry publication candidate to `0.6.2` because the already-published `v0.6.1`
+  Git tag, GitHub Release and GHCR artifacts remain immutable.
+- Updated Registry tests and EN/PT-BR documentation to distinguish generic `server.json` schema
+  validity from OCI-specific publication requirements.
+- Added ADR 0025 documenting the validation gap discovered during the first manual Registry
+  publication attempt.
+
+### Security
+
+- Registry metadata continues to bind only to versioned public OCI artifacts carrying the exact
+  `io.modelcontextprotocol.server.name` ownership label.
+- No mutable `latest` OCI tag, hosted `remotes` declaration or automated Registry publication is
+  introduced by this corrective release.
+
 ## [0.6.1] - 2026-08-10
 
 ### Added

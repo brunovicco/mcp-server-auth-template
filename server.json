@@ -9,12 +9,11 @@
     "source": "github",
     "id": "1327263126"
   },
-  "version": "0.6.1",
+  "version": "0.6.2",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/brunovicco/mcp-server-auth-template:v0.6.1",
-      "version": "0.6.1",
+      "identifier": "ghcr.io/brunovicco/mcp-server-auth-template:v0.6.2",
       "runtimeHint": "docker",
       "transport": {
         "type": "streamable-http",

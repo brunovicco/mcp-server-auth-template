@@ -74,7 +74,7 @@ def _set_repository_id(value: str) -> ServerMutation:
 
 
 def test_registry_metadata_accepts_repository_contract(registry_root: Path) -> None:
-    validate(registry_root, release_tag="v0.6.1")
+    validate(registry_root, release_tag="v0.6.2")
 
 
 @pytest.mark.parametrize(
@@ -92,7 +92,24 @@ def test_registry_metadata_accepts_repository_contract(registry_root: Path) -> N
         ),
         (_set_transport_type("stdio"), "streamable-http"),
         (_set_transport_url("http://127.0.0.1:8000/sse"), "transport URL"),
-        (_set_package_value("version", "0.6.2"), "package.version"),
+        (
+            _set_package_value("version", "0.6.2"),
+            "must not declare version",
+        ),
+        (
+            _set_package_value(
+                "registryBaseUrl",
+                "https://ghcr.io",
+            ),
+            "must not declare registryBaseUrl",
+        ),
+        (
+            _set_package_value(
+                "fileSha256",
+                "0" * 64,
+            ),
+            "must not declare fileSha256",
+        ),
         (_set_repository_id("999"), "repository.id"),
     ],
 )
@@ -107,14 +124,14 @@ def test_registry_metadata_rejects_drift(
 
 
 def test_registry_metadata_rejects_version_mismatch(registry_root: Path) -> None:
-    _mutate_server(registry_root, _set_root_value("version", "0.6.2"))
+    _mutate_server(registry_root, _set_root_value("version", "0.6.3"))
     with pytest.raises(ValidationError, match="version"):
         validate(registry_root)
 
 
 def test_registry_metadata_rejects_release_tag_mismatch(registry_root: Path) -> None:
     with pytest.raises(ValidationError, match="release tag"):
-        validate(registry_root, release_tag="v0.6.2")
+        validate(registry_root, release_tag="v0.6.3")
 
 
 def test_registry_metadata_rejects_missing_docker_label(registry_root: Path) -> None:
