@@ -1,0 +1,310 @@
+name: publish-official-mcp-registry
+
+on:
+  workflow_run:
+    workflows:
+      - secure-release-publication
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: official-mcp-registry-publication
+  cancel-in-progress: false
+
+env:
+  REGISTRY_URL: https://registry.modelcontextprotocol.io
+  SERVER_NAME: io.github.brunovicco/mcp-server-auth-template
+  ENCODED_SERVER_NAME: io.github.brunovicco%2Fmcp-server-auth-template
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  publish:
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+      RELEASE_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+    steps:
+      - name: Check out trusted automation source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Validate secure release handoff
+        id: handoff
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag from workflow_run: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid release SHA from workflow_run: $RELEASE_SHA" >&2
+            exit 1
+          fi
+          if [[ ! "$DEFAULT_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "Invalid default branch name" >&2
+            exit 1
+          fi
+
+          expected_workflow_id="$(
+            gh api               "repos/${GITHUB_REPOSITORY}/actions/workflows/release-artifacts.yml"               --jq '.id'
+          )"
+          if [ "$RELEASE_WORKFLOW_ID" != "$expected_workflow_id" ]; then
+            echo "workflow_run did not come from release-artifacts.yml" >&2
+            exit 1
+          fi
+
+          git fetch --force origin             "${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+          git fetch --force origin             "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+
+          if [ "$(git cat-file -t "refs/tags/${RELEASE_TAG}")" != "tag" ]; then
+            echo "$RELEASE_TAG must remain an annotated tag" >&2
+            exit 1
+          fi
+
+          tag_sha="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          if [ "$tag_sha" != "$RELEASE_SHA" ]; then
+            echo "workflow_run SHA does not match the immutable release tag" >&2
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor             "$RELEASE_SHA"             "origin/${DEFAULT_BRANCH}"; then
+            echo "Release tag commit is not reachable from the default branch" >&2
+            exit 1
+          fi
+
+          release_json="${RUNNER_TEMP}/github-release.json"
+          gh api             "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}"             > "$release_json"
+
+          python - "$release_json" "$RELEASE_TAG" <<'PY'
+          import json
+          import sys
+
+          path, expected_tag = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              release = json.load(handle)
+
+          assert release["tag_name"] == expected_tag
+          assert release["draft"] is False
+          assert release["prerelease"] is False
+          assert release.get("published_at")
+          print("GitHub Release publication: OK")
+          PY
+
+          version="${RELEASE_TAG#v}"
+          server_json="${RUNNER_TEMP}/server.json"
+          git show "${RELEASE_SHA}:server.json" > "$server_json"
+
+          python scripts/validate_registry_publication.py             --kind source             --input "$server_json"             --version "$version"
+
+          release_dir="${RUNNER_TEMP}/release-evidence"
+          mkdir -p "$release_dir"
+          gh release download "$RELEASE_TAG"             --repo "$GITHUB_REPOSITORY"             --pattern image-digest.txt             --dir "$release_dir"
+
+          expected_subject="$(tr -d '\r\n' < "${release_dir}/image-digest.txt")"
+          if [[ ! "$expected_subject" =~ ^ghcr\.io/brunovicco/mcp-server-auth-template@sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid immutable OCI subject in image-digest.txt: $expected_subject" >&2
+            exit 1
+          fi
+          expected_digest="${expected_subject#*@}"
+
+          version_manifest="$(
+            docker buildx imagetools inspect               "${IMAGE_NAME}:${RELEASE_TAG}"               --format '{{json .Manifest}}'
+          )"
+          version_digest="$(
+            printf '%s' "$version_manifest" |
+              python -c 'import json,sys; print(json.load(sys.stdin)["digest"])'
+          )"
+
+          commit_manifest="$(
+            docker buildx imagetools inspect               "${IMAGE_NAME}:sha-${RELEASE_SHA}"               --format '{{json .Manifest}}'
+          )"
+          commit_digest="$(
+            printf '%s' "$commit_manifest" |
+              python -c 'import json,sys; print(json.load(sys.stdin)["digest"])'
+          )"
+
+          if [ "$version_digest" != "$expected_digest" ]; then
+            echo "Version OCI tag does not match GitHub Release digest evidence" >&2
+            exit 1
+          fi
+          if [ "$commit_digest" != "$expected_digest" ]; then
+            echo "Commit OCI tag does not match GitHub Release digest evidence" >&2
+            exit 1
+          fi
+
+          for arch in amd64 arm64; do
+            labels="$(
+              docker buildx imagetools inspect                 "${IMAGE_NAME}:${RELEASE_TAG}-${arch}"                 --format '{{json .Image.Config.Labels}}'
+            )"
+            python - "$arch" "$labels" "$SERVER_NAME" <<'PY'
+          import json
+          import sys
+
+          arch, raw_labels, expected_name = sys.argv[1:]
+          labels = json.loads(raw_labels)
+          actual = labels.get("io.modelcontextprotocol.server.name")
+          assert actual == expected_name, (
+              f"{arch}: MCP ownership label mismatch: {actual!r}"
+          )
+          print(f"{arch}: OCI ownership label: OK")
+          PY
+          done
+
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'server-json=%s\n' "$server_json" >> "$GITHUB_OUTPUT"
+          printf 'image-digest=%s\n' "$expected_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Install checksum-verified mcp-publisher
+        id: publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          publisher="$(
+            bash scripts/install_mcp_publisher.sh               "${RUNNER_TEMP}/mcp-publisher"
+          )"
+          "$publisher" --version
+          printf 'path=%s\n' "$publisher" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Registry publication preconditions
+        id: registry-state
+        shell: bash
+        env:
+          VERSION: ${{ steps.handoff.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          exact="${REGISTRY_URL}/v0.1/servers/${ENCODED_SERVER_NAME}/versions/${VERSION}"
+          response="${RUNNER_TEMP}/registry-before.json"
+          http="$(
+            curl --silent --show-error               --output "$response"               --write-out '%{http_code}'               "$exact"
+          )"
+
+          case "$http" in
+            404)
+              echo "Registry version is absent; publication is required."
+              printf 'action=publish\n' >> "$GITHUB_OUTPUT"
+              ;;
+            200)
+              python scripts/validate_registry_publication.py                 --kind exact                 --input "$response"                 --version "$VERSION"                 --latest-state any
+              echo "Exact Registry version already exists and matches; publication is idempotent."
+              printf 'action=verify-only\n' >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              cat "$response" >&2 || true
+              echo "Unexpected Registry pre-publication HTTP status: $http" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Authenticate to Official MCP Registry with GitHub OIDC
+        if: steps.registry-state.outputs.action == 'publish'
+        shell: bash
+        env:
+          PUBLISHER: ${{ steps.publisher.outputs.path }}
+        run: |
+          set -euo pipefail
+          "$PUBLISHER" login github-oidc --registry "$REGISTRY_URL"
+
+      - name: Publish immutable Official MCP Registry entry
+        if: steps.registry-state.outputs.action == 'publish'
+        shell: bash
+        env:
+          PUBLISHER: ${{ steps.publisher.outputs.path }}
+          SERVER_JSON: ${{ steps.handoff.outputs.server-json }}
+        run: |
+          set -euo pipefail
+          "$PUBLISHER" publish "$SERVER_JSON"
+
+      - name: Verify Official MCP Registry publication
+        shell: bash
+        env:
+          VERSION: ${{ steps.handoff.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          exact="${REGISTRY_URL}/v0.1/servers/${ENCODED_SERVER_NAME}/versions/${VERSION}"
+          exact_response="${RUNNER_TEMP}/registry-exact.json"
+          exact_http="$(
+            curl --silent --show-error               --output "$exact_response"               --write-out '%{http_code}'               "$exact"
+          )"
+          [ "$exact_http" = "200" ] || {
+            cat "$exact_response" >&2 || true
+            echo "Exact Registry version verification failed: HTTP $exact_http" >&2
+            exit 1
+          }
+
+          python scripts/validate_registry_publication.py             --kind exact             --input "$exact_response"             --version "$VERSION"             --latest-state any
+
+          verify_latest="$(
+            python - "$exact_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+          value = payload["_meta"]["io.modelcontextprotocol.registry/official"]["isLatest"]
+          print("true" if value is True else "false")
+          PY
+          )"
+
+          if [ "$verify_latest" = "true" ]; then
+            latest_response="${RUNNER_TEMP}/registry-latest.json"
+            latest_http="$(
+              curl --silent --show-error                 --output "$latest_response"                 --write-out '%{http_code}'                 "${REGISTRY_URL}/v0.1/servers/${ENCODED_SERVER_NAME}/versions/latest"
+            )"
+            [ "$latest_http" = "200" ] || {
+              cat "$latest_response" >&2 || true
+              echo "Registry latest verification failed: HTTP $latest_http" >&2
+              exit 1
+            }
+
+            python scripts/validate_registry_publication.py               --kind latest               --input "$latest_response"               --version "$VERSION"               --latest-state true
+
+            discovery_response="${RUNNER_TEMP}/registry-discovery.json"
+            discovery_http="$(
+              curl --silent --show-error --get                 --output "$discovery_response"                 --write-out '%{http_code}'                 "${REGISTRY_URL}/v0.1/servers"                 --data-urlencode "search=${SERVER_NAME}"                 --data-urlencode "version=latest"
+            )"
+            [ "$discovery_http" = "200" ] || {
+              cat "$discovery_response" >&2 || true
+              echo "Registry discovery verification failed: HTTP $discovery_http" >&2
+              exit 1
+            }
+
+            python scripts/validate_registry_publication.py               --kind discovery               --input "$discovery_response"               --version "$VERSION"               --latest-state true
+          else
+            echo "Exact Registry version is active but not latest; latest/discovery checks are skipped."
+          fi
+
+      - name: Remove Registry credentials
+        if: always() && steps.registry-state.outputs.action == 'publish'
+        shell: bash
+        env:
+          PUBLISHER: ${{ steps.publisher.outputs.path }}
+        run: |
+          "$PUBLISHER" logout || true

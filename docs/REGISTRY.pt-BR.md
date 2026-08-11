@@ -88,9 +88,28 @@ Para uma tag de release:
 uv run python scripts/validate_registry_metadata.py --release-tag v0.6.2
 ```
 
-A automação de publicação continua deliberadamente fora desta etapa. A primeira tentativa manual com
-`v0.6.1` revelou uma regra específica do backend OCI mais restritiva que o schema genérico de
-`server.json`: pacotes OCI devem codificar sua versão somente no `identifier`.
+## Publicação automatizada
 
-A primeira publicação bem-sucedida no Registry, portanto, só acontece depois que a release OCI
-corrigida `v0.6.2` estiver pública e validada independentemente.
+A primeira publicação bem-sucedida foi concluída manualmente para `v0.6.2`, estabelecendo primeiro o
+contrato real de produção.
+
+As releases futuras são publicadas por `.github/workflows/publish-mcp-registry.yml` somente depois
+que `secure-release-publication` termina com sucesso. O workflow do Registry permanece separado da
+publicação dos artefatos imutáveis para que indisponibilidade ou retry do Registry não tente recriar
+tags do GHCR nem assets da GitHub Release.
+
+Antes de solicitar uma credencial, a automação valida identidade do workflow seguro de release, tag
+anotada e commit, ancestralidade na branch default, GitHub Release publicada, digest imutável da
+release, igualdade dos digests OCI de versão/commit, ownership nas duas plataformas e o
+`server.json` da release.
+
+A autenticação usa `mcp-publisher login github-oidc`. O job possui somente `contents: read` e
+`id-token: write`; nenhum PAT do Registry ou secret dedicado fica armazenado. A autenticação
+acontece imediatamente antes de `publish`, evitando consumir o JWT de curta duração nos checks
+anteriores.
+
+Retries são idempotentes. Se a versão exata já existir e corresponder à release imutável, o workflow
+apenas a valida e não publica novamente.
+
+Depois de uma nova publicação, o workflow valida a versão exata, `latest` e discovery antes de
+concluir.

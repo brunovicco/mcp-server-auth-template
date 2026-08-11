@@ -16,10 +16,16 @@ PERMISSIONS_HEADER = re.compile(
 PERMISSION_ENTRY = re.compile(r"^(?P<name>[a-z-]+):\s*(?P<access>read|write|none)\s*$")
 JOB_HEADER = re.compile(r"^  (?P<name>[A-Za-z0-9_-]+):\s*(?:#.*)?$")
 RELEASE_WORKFLOW = Path(".github/workflows/release-artifacts.yml")
-RELEASE_JOB_WRITE_PERMISSIONS = {
-    "build-python-artifacts": {"artifact-metadata", "attestations", "id-token"},
-    "publish-container": {"artifact-metadata", "attestations", "id-token", "packages"},
-    "publish-github-release": {"contents"},
+REGISTRY_WORKFLOW = Path(".github/workflows/publish-mcp-registry.yml")
+WORKFLOW_JOB_WRITE_PERMISSIONS = {
+    RELEASE_WORKFLOW.as_posix(): {
+        "build-python-artifacts": {"artifact-metadata", "attestations", "id-token"},
+        "publish-container": {"artifact-metadata", "attestations", "id-token", "packages"},
+        "publish-github-release": {"contents"},
+    },
+    REGISTRY_WORKFLOW.as_posix(): {
+        "publish": {"id-token"},
+    },
 }
 
 REQUIRED_FILES = (
@@ -27,17 +33,20 @@ REQUIRED_FILES = (
     Path(".github/dependabot.yml"),
     Path(".github/workflows/dependency-review.yml"),
     RELEASE_WORKFLOW,
+    REGISTRY_WORKFLOW,
     Path(".github/workflows/sbom.yml"),
     Path("docs/adr/0020-actionable-vulnerability-exceptions.md"),
     Path("docs/adr/0021-reproducible-release-provenance.md"),
     Path("docs/adr/0022-secure-release-publication.md"),
     Path("docs/adr/0023-multi-platform-release-publication.md"),
+    Path("docs/adr/0026-secure-official-registry-publication.md"),
     Path("docs/SUPPLY_CHAIN.md"),
     Path("scripts/enforce_vulnerability_policy.py"),
     Path("scripts/install_security_tools.sh"),
     Path("scripts/prepare_release_artifacts.py"),
     Path("scripts/prepare_multiarch_image_evidence.py"),
     Path("scripts/prepare_release_publication.py"),
+    Path("scripts/validate_registry_publication.py"),
     Path("scripts/validate_security_evidence.py"),
     Path("security/vulnerability-exceptions.json"),
 )
@@ -140,8 +149,8 @@ def validate_workflow(path: Path, *, root: Path | None = None) -> list[str]:
         entries = _permission_entries(lines, line_number, indent)
         job = _permission_job(lines, line_number, indent)
         allowed_write_permissions = (
-            RELEASE_JOB_WRITE_PERMISSIONS.get(job, set())
-            if display == RELEASE_WORKFLOW.as_posix() and job is not None
+            WORKFLOW_JOB_WRITE_PERMISSIONS.get(display, {}).get(job, set())
+            if job is not None
             else set()
         )
         for name, access in entries.items():
@@ -310,6 +319,77 @@ def _validate_baseline_configuration(root: Path) -> list[str]:
             errors.append(
                 "release-artifacts.yml: both platform policies must execute "
                 "before registry login/push"
+            )
+
+    registry_path = root / REGISTRY_WORKFLOW
+    if registry_path.is_file():
+        text = registry_path.read_text(encoding="utf-8")
+        required_registry_controls = {
+            "secure release completion trigger": "workflow_run:",
+            "secure release workflow dependency": "secure-release-publication",
+            "completed-run trigger": "completed",
+            "serialized Registry publication": "group: official-mcp-registry-publication",
+            "successful release condition": "workflow_run.conclusion == 'success'",
+            "tag-push condition": "workflow_run.event == 'push'",
+            "same-repository condition": (
+                "workflow_run.head_repository.full_name == github.repository"
+            ),
+            "trusted default-branch checkout": (
+                "ref: ${{ github.event.repository.default_branch }}"
+            ),
+            "annotated tag validation": 'git cat-file -t "refs/tags/${RELEASE_TAG}"',
+            "default-branch ancestry validation": "git merge-base --is-ancestor",
+            "release workflow identity validation": "actions/workflows/release-artifacts.yml",
+            "published GitHub Release validation": "releases/tags/${RELEASE_TAG}",
+            "release digest evidence": "image-digest.txt",
+            "version OCI digest validation": '"${IMAGE_NAME}:${RELEASE_TAG}"',
+            "commit OCI digest validation": '"${IMAGE_NAME}:sha-${RELEASE_SHA}"',
+            "MCP OCI ownership validation": "io.modelcontextprotocol.server.name",
+            "checksum-verified publisher installation": "install_mcp_publisher.sh",
+            "OIDC Registry authentication": "login github-oidc",
+            "Registry audience binding": '--registry "$REGISTRY_URL"',
+            "idempotent existing-version path": "action=verify-only",
+            "Registry exact-version verification": "/versions/${VERSION}",
+            "Registry latest verification": "/versions/latest",
+            "Registry discovery verification": "version=latest",
+            "Registry response validation": "validate_registry_publication.py",
+            "Registry credential cleanup": "logout || true",
+        }
+        for control, marker in required_registry_controls.items():
+            if marker not in text:
+                errors.append(f"publish-mcp-registry.yml: missing {control}")
+
+        forbidden_registry_controls = {
+            "pull request trigger": "pull_request:",
+            "pull_request_target trigger": "pull_request_target:",
+            "direct tag-push trigger": "tags:",
+            "manual dispatch trigger": "workflow_dispatch:",
+            "stored secret reference": "secrets.",
+            "PAT Registry authentication": "login github --token",
+        }
+        for control, marker in forbidden_registry_controls.items():
+            if marker in text:
+                errors.append(f"publish-mcp-registry.yml: forbidden {control}")
+
+        if text.count("id-token: write") != 1:
+            errors.append(
+                "publish-mcp-registry.yml: exactly one Registry OIDC write permission is required"
+            )
+        if text.count("login github-oidc") != 1:
+            errors.append("publish-mcp-registry.yml: exactly one GitHub OIDC login is required")
+        if text.count('"$PUBLISHER" publish "$SERVER_JSON"') != 1:
+            errors.append(
+                "publish-mcp-registry.yml: exactly one Registry publish command is required"
+            )
+
+        preflight = text.find("Validate Registry publication preconditions")
+        login = text.find("login github-oidc")
+        publish = text.find('"$PUBLISHER" publish "$SERVER_JSON"')
+        verify = text.find("Verify Official MCP Registry publication")
+        if min(preflight, login, publish, verify) < 0 or not preflight < login < publish < verify:
+            errors.append(
+                "publish-mcp-registry.yml: preflight, OIDC login, publish and verification "
+                "must remain ordered"
             )
 
     publication_path = root / "scripts/prepare_release_publication.py"

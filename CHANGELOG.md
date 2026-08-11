@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Added a dedicated Official MCP Registry publication workflow that runs only after the secure
+  release workflow completes successfully and authenticates with GitHub OIDC.
+- Added executable validation for persisted Registry exact-version, latest and discovery responses.
+
+### Security
+
+- Registry automation verifies the annotated release tag, default-branch ancestry, published GitHub
+  Release, release digest evidence, public OCI version/commit digest binding and per-platform MCP
+  ownership labels before requesting an OIDC credential.
+- Registry authentication is short-lived and requested immediately before publication; no Registry
+  PAT or dedicated repository/organization secret is introduced.
+- Registry retries are idempotent: an already-published exact version must match the immutable
+  release and is verified without republishing.
+
 ## [0.6.2] - 2026-08-11
 
 ### Fixed

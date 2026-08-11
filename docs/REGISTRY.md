@@ -89,9 +89,26 @@ For a release tag:
 uv run python scripts/validate_registry_metadata.py --release-tag v0.6.2
 ```
 
-Automated Registry publication remains deliberately out of scope here. The first manual publication
-attempt with `v0.6.1` exposed an OCI-specific backend rule that is stricter than the generic
-`server.json` schema: OCI packages must encode their version only in `identifier`.
+## Automated publication
 
-The first successful Registry publication therefore happens only after the corrected secure
-`v0.6.2` OCI release is public and independently validated.
+The first successful publication was completed manually for `v0.6.2` to establish the production
+contract before automation.
+
+Future releases are published by `.github/workflows/publish-mcp-registry.yml` only after
+`secure-release-publication` completes successfully. The Registry workflow is deliberately separate
+from immutable artifact publication so a Registry outage or retry cannot cause GHCR tags or GitHub
+Release assets to be recreated.
+
+Before requesting a Registry credential, automation verifies the secure-release workflow identity,
+annotated tag and commit, default-branch ancestry, published GitHub Release, immutable release digest,
+version/commit OCI digest equality, both platform ownership labels and the release `server.json`.
+
+Authentication uses `mcp-publisher login github-oidc`. The publication job has only `contents: read`
+and `id-token: write`; no Registry PAT or dedicated secret is stored. Authentication happens
+immediately before `publish` so the short-lived Registry JWT is not consumed by earlier validation.
+
+Retries are idempotent. If the exact Registry version already exists and matches the immutable
+release, the workflow verifies it and does not publish again.
+
+After a new publication the workflow verifies the exact version, `latest`, and discovery before
+completing.
