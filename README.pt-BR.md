@@ -34,6 +34,10 @@ O fluxo executável do par valida comportamento real do resource server, e não 
 - ✅ continua W3C Trace Context sem colocar valores sensíveis de OAuth/MCP na telemetria
 - ✅ valida artifacts, imagem, SBOMs e provenance por gates executáveis
 
+Para uma visão requisito a requisito do comportamento OAuth/MCP do par, incluindo lacunas explícitas
+de evidência e tópicos para o Authorization Interest Group / Tool Scopes Working Group do MCP, veja o
+[Authorization Implementer Report](docs/AUTHORIZATION_IMPLEMENTER_REPORT.md).
+
 ## Arquitetura
 
 ```mermaid

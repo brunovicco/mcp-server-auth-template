@@ -136,6 +136,20 @@ Local pair verification:
 python scripts/cross_repository_contract.py --peer-root ../mcp-client-auth-template
 ```
 
+## Authorization implementer report
+
+The public [MCP Authorization Implementer Report](AUTHORIZATION_IMPLEMENTER_REPORT.md) maps the
+paired server/client reference against the MCP `2026-07-28` authorization requirements.
+
+It is deliberately evidence-scoped rather than a blanket compliance claim. The report distinguishes
+pair E2E evidence, project-owned unit evidence, behavior delegated to the official MCP Python SDK,
+deployment profiles that are supported but not live-verified, and normative cases that are not
+independently exercised.
+
+The report snapshot is anchored to server `v0.6.2`, client `v0.6.0`, and the MCP specification
+snapshot recorded in the document. It is intended as input to the Authorization Interest Group and
+the active Tool Scopes Working Group.
+
 ## Scope
 
 The published compatibility claims cover the executable Python/MCP SDK, auth/transport, and

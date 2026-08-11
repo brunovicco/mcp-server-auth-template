@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added an evidence-first MCP `2026-07-28` Authorization Implementer Report covering the paired
+  server/client reference, with normative requirement mapping, executable evidence, explicit
+  unclaimed cases, and feedback topics for the Authorization Interest Group and Tool Scopes Working
+  Group.
+
+### Changed
+
+- Linked the implementer report from the main documentation and compatibility contract without
+  changing the MCP authorization runtime or release version.
+
+### Added
+
 - Added a dedicated Official MCP Registry publication workflow that runs only after the secure
   release workflow completes successfully and authenticates with GitHub OIDC.
 - Added executable validation for persisted Registry exact-version, latest and discovery responses.
