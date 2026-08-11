@@ -173,6 +173,53 @@ jobs:
     assert any("publish-container: contents: write" in error for error in errors)
 
 
+def test_registry_workflow_allows_only_oidc_write_permission(tmp_path: Path) -> None:
+    path = tmp_path / ".github/workflows/publish-mcp-registry.yml"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        """name: registry
+on:
+  workflow_run:
+    workflows: [secure-release-publication]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  publish:
+    permissions:
+      contents: read
+      id-token: write
+    steps: []
+""",
+        encoding="utf-8",
+    )
+
+    assert validate_workflow(path, root=tmp_path) == []
+
+
+def test_registry_workflow_rejects_repository_write_permission(tmp_path: Path) -> None:
+    path = tmp_path / ".github/workflows/publish-mcp-registry.yml"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        """name: registry
+on: workflow_run
+permissions:
+  contents: read
+jobs:
+  publish:
+    permissions:
+      contents: write
+      id-token: write
+    steps: []
+""",
+        encoding="utf-8",
+    )
+
+    errors = validate_workflow(path, root=tmp_path)
+
+    assert any("publish: contents: write" in error for error in errors)
+
+
 def test_local_actions_are_allowed_without_remote_revision(tmp_path: Path) -> None:
     path = _workflow(
         tmp_path,
