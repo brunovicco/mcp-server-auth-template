@@ -33,6 +33,10 @@ The paired executable path validates real resource-server behavior rather than c
 - ✅ W3C trace context reaches the server while OAuth/MCP sensitive values stay out of telemetry
 - ✅ release artifacts, container evidence, SBOMs and provenance are validated by executable gates
 
+For a requirement-by-requirement view of the paired OAuth/MCP behavior, including explicit evidence
+gaps and discussion topics for the MCP Authorization Interest Group / Tool Scopes Working Group, see
+the [Authorization Implementer Report](docs/AUTHORIZATION_IMPLEMENTER_REPORT.md).
+
 ## Architecture
 
 ```mermaid
