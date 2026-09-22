@@ -338,6 +338,7 @@ def build_server(
             issuer_url=issuer_url,
             resource_server_url=settings.resource_server_url,
             required_scopes=settings.effective_required_scopes or None,
+            validate_token_resource=False,
         ),
         lifespan=lifespan,
         middleware=[
