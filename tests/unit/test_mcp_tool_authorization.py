@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from typing import Any, cast
 
+import pytest
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from mcp.server.auth.provider import AccessToken
 from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
@@ -87,6 +88,68 @@ async def test_tools_list_hides_tools_the_principal_cannot_call() -> None:
 
     assert isinstance(filtered, ListToolsResult)
     assert [tool.name for tool in filtered.tools] == ["health", "customer"]
+
+
+async def test_tools_list_filters_the_serialized_wire_result_and_keeps_its_envelope() -> None:
+    """The SDK runner hands middleware the wire dict, not a ``ListToolsResult``."""
+    authorizer = ToolAuthorizationService(
+        {
+            "health": ToolPolicy.authenticated(),
+            "payment": ToolPolicy.application_roles("Payment.Execute"),
+        }
+    )
+    middleware = ToolAuthorizationMiddleware(authorizer=authorizer, auth_provider="entra")
+    wire_result: dict[str, Any] = {
+        "tools": [
+            {"name": "health", "inputSchema": {"type": "object"}},
+            {"name": "payment", "inputSchema": {"type": "object"}},
+            {"name": "unconfigured", "inputSchema": {"type": "object"}},
+        ],
+        "ttlMs": 30000,
+        "cacheScope": "private",
+        "_meta": {"io.modelcontextprotocol/serverInfo": {"name": "s", "version": "1"}},
+    }
+    ctx = _context(
+        "tools/list",
+        params=None,
+        request=_request(scopes=["customer.read"], claims={"scp": "customer.read"}),
+    )
+
+    filtered = await middleware(ctx, _next_returning(wire_result))
+
+    assert isinstance(filtered, dict)
+    assert [tool["name"] for tool in filtered["tools"]] == ["health"]
+    assert filtered["ttlMs"] == 30000
+    assert filtered["cacheScope"] == "private"
+    assert filtered["_meta"] == wire_result["_meta"]
+    assert len(wire_result["tools"]) == 3
+
+
+async def test_tools_list_drops_malformed_wire_tool_entries() -> None:
+    authorizer = ToolAuthorizationService({"health": ToolPolicy.authenticated()})
+    middleware = ToolAuthorizationMiddleware(authorizer=authorizer, auth_provider="generic")
+    ctx = _context("tools/list", params=None, request=_request(scopes=[], claims={}))
+
+    filtered = await middleware(
+        ctx,
+        _next_returning({"tools": ["health", {"name": 7}, {"name": "health"}]}),
+    )
+
+    assert filtered == {"tools": [{"name": "health"}]}
+
+
+@pytest.mark.parametrize("result", [None, {}, {"tools": "health"}, {"tools": None}])
+async def test_tools_list_fails_closed_on_an_unexpected_result_shape(
+    result: HandlerResult,
+) -> None:
+    authorizer = ToolAuthorizationService({"health": ToolPolicy.authenticated()})
+    middleware = ToolAuthorizationMiddleware(authorizer=authorizer, auth_provider="generic")
+    ctx = _context("tools/list", params=None, request=_request(scopes=[], claims={}))
+
+    filtered = await middleware(ctx, _next_returning(result))
+
+    assert isinstance(filtered, ListToolsResult)
+    assert filtered.tools == []
 
 
 async def test_tools_call_denies_before_the_tool_handler_runs() -> None:
