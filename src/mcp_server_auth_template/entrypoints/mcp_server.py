@@ -16,6 +16,7 @@ Run locally with:
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from importlib.metadata import version
+from types import MappingProxyType
 from typing import cast
 from urllib.parse import urlsplit
 
@@ -28,6 +29,7 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import TokenVerifier
 from mcp.server.auth.routes import build_resource_metadata_url
 from mcp.server.auth.settings import AuthSettings
+from mcp.server.caching import CacheableMethod, CacheHint
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
@@ -69,6 +71,16 @@ _HEALTH_SCOPE = "mcp:tools:health"
 _MCP_HTTP_PATH = "/mcp"
 _OPERATIONAL_PROBE_PATHS = frozenset({"/livez", "/readyz"})
 _SERVICE_VERSION = version("mcp-server-auth-template")
+# SEP-2549 freshness hints (ADR-0028). ``tools/list`` is filtered per principal, so
+# every hint is ``private`` - reusable only within the authorization context that
+# produced it - and bounded so policy or scope changes are picked up quickly.
+_DISCOVERY_CACHE_TTL_MS = 30_000
+_CACHE_HINTS: Mapping[CacheableMethod, CacheHint] = MappingProxyType(
+    {
+        "server/discover": CacheHint(ttl_ms=_DISCOVERY_CACHE_TTL_MS, scope="private"),
+        "tools/list": CacheHint(ttl_ms=_DISCOVERY_CACHE_TTL_MS, scope="private"),
+    }
+)
 
 
 def build_observability_settings(settings: Settings) -> ObservabilitySettings:
@@ -354,6 +366,7 @@ def build_server(
         extensions=[OAuthClientCredentialsExtension()],
         token_verifier=token_verifier,
         auth=_build_auth_settings(settings, issuer_url),
+        cache_hints=_CACHE_HINTS,
         lifespan=lifespan,
         middleware=[
             ToolAuthorizationMiddleware(
