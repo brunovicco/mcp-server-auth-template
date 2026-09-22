@@ -286,6 +286,25 @@ def _resolve_issuer_url(settings: Settings) -> str:
     return settings.generic_issuer_url
 
 
+def _build_auth_settings(settings: Settings, issuer_url: str) -> AuthSettings:
+    """Build the SDK resource-server settings with an explicit token-resource policy.
+
+    ``validate_token_resource`` is pinned to ``False`` rather than left to the SDK
+    default, which warns in 2.x and flips to ``True`` in MCP 3. SDK resource checking
+    compares ``AccessToken.resource`` to ``resource_server_url`` as strings, but
+    provider audiences are not that URL (Entra uses the API client ID). The token
+    verifiers enforce issuer, expiry, and provider audience themselves, so tokens
+    minted for another resource are still refused. See
+    ``docs/adr/0027-explicit-token-resource-validation.md``.
+    """
+    return AuthSettings(
+        issuer_url=issuer_url,
+        resource_server_url=settings.resource_server_url,
+        required_scopes=settings.effective_required_scopes or None,
+        validate_token_resource=False,
+    )
+
+
 def build_server(
     settings: Settings | None = None,
     *,
@@ -334,12 +353,7 @@ def build_server(
         name=settings.service_name,
         extensions=[OAuthClientCredentialsExtension()],
         token_verifier=token_verifier,
-        auth=AuthSettings(
-            issuer_url=issuer_url,
-            resource_server_url=settings.resource_server_url,
-            required_scopes=settings.effective_required_scopes or None,
-            validate_token_resource=False,
-        ),
+        auth=_build_auth_settings(settings, issuer_url),
         lifespan=lifespan,
         middleware=[
             ToolAuthorizationMiddleware(

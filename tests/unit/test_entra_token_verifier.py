@@ -113,6 +113,43 @@ async def test_roles_remain_separate_when_a_delegated_token_also_has_roles(
     assert access_token.claims["roles"] == ["Operator"]
 
 
+async def test_reports_the_api_client_id_as_the_token_resource(keypair: SigningKeyPair) -> None:
+    token = sign_test_token(
+        keypair,
+        issuer=_ISSUER,
+        audience=_AUDIENCE,
+        scopes=None,
+        extra_claims={"tid": _TENANT_ID, "scp": "mcp:tools:call"},
+    )
+
+    access_token = await _verifier(keypair).verify_token(token)
+
+    assert access_token is not None
+    assert access_token.resource == _API_CLIENT_ID
+
+
+@pytest.mark.parametrize(
+    "audience",
+    [
+        "00000003-0000-0000-c000-000000000000",  # Microsoft Graph
+        "44444444-4444-4444-4444-444444444444",  # another API in the same tenant
+        "https://mcp.example.invalid",  # the MCP URL is not the Entra audience
+    ],
+)
+async def test_rejects_a_token_minted_for_another_audience(
+    keypair: SigningKeyPair, audience: str
+) -> None:
+    token = sign_test_token(
+        keypair,
+        issuer=_ISSUER,
+        audience=audience,
+        scopes=None,
+        extra_claims={"tid": _TENANT_ID, "scp": "mcp:tools:call"},
+    )
+
+    assert await _verifier(keypair).verify_token(token) is None
+
+
 async def test_rejects_a_token_from_a_different_tenant(keypair: SigningKeyPair) -> None:
     token = sign_test_token(
         keypair, issuer=_ISSUER, audience=_AUDIENCE, extra_claims={"tid": _OTHER_TENANT_ID}
