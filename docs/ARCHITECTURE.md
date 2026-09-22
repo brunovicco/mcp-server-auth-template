@@ -60,6 +60,14 @@ domain      -> no outer layer
   and outside auth/tool dispatch. It exports metadata-only traces over OTLP HTTP/protobuf only
   when `A2A_OTEL_ENABLED=true`, propagates W3C Trace Context but not baggage, and is shut down by
   the MCP server lifespan. The separate Langfuse LLM observer remains opt-in.
+- Token resource: `AuthSettings.validate_token_resource` is explicitly `False`. The SDK's
+  string comparison of `AccessToken.resource` with the MCP URL would reject valid provider
+  audiences, so the token verifier adapters are the single place audience is enforced (ADR-0027).
+- Tool discovery: `ToolAuthorizationMiddleware` filters the SDK's serialized `tools/list` wire
+  result per principal and fails closed to an empty catalog. Discovery results carry only bounded
+  `private` cache hints, declared once in the entrypoint (ADR-0028).
+- SDK evolution: pytest promotes `mcp.MCPDeprecationWarning` to an error so MCP 3 breakage is
+  detected while still on MCP 2.x.
 - Errors: infrastructure errors translated at adapters; external errors mapped at entrypoints.
 - Time: UTC internally with timezone-aware values.
 - Money: `Decimal` wrapped in a domain Value Object.

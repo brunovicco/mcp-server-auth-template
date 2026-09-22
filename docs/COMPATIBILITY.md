@@ -9,8 +9,8 @@ CI verifies both the support floor and the moving compatible edge.
 | Dimension | Supported policy | CI evidence |
 | --- | --- | --- |
 | Python | `>=3.13,<3.15` | Python 3.13 and 3.14 matrix cells |
-| MCP Python SDK | `>=2.0,<3` | `minimum` and `latest` profiles |
-| MCP SDK support floor | `2.0.0` | Exact `mcp==2.0.0` installation |
+| MCP Python SDK | `>=2.2,<3` | `minimum` and `latest` profiles |
+| MCP SDK support floor | `2.2.0` | Exact `mcp==2.2.0` installation |
 | MCP SDK upper boundary | `<3` | Latest resolver constrained to MCP 2.x |
 | MCP protocol reference profile | `2026-07-28` | Versioned pair contract + client-owned E2E |
 | Transport | Streamable HTTP | Production and loopback profiles |
@@ -19,14 +19,27 @@ CI verifies both the support floor and the moving compatible edge.
 
 All four Python × MCP-profile cells must pass the repository test suite.
 
+### MCP 3 readiness
+
+The test suite promotes `mcp.MCPDeprecationWarning` to an error, so any use of an MCP SDK API
+scheduled to change or disappear in MCP 3 fails CI while the project still runs on MCP 2.x. Only
+the SDK's own warning class is promoted; other deprecations are evaluated case by case.
+
+Behavior that would otherwise shift on the MCP 3 upgrade is pinned explicitly:
+
+| SDK setting | Value | Why |
+| --- | --- | --- |
+| `AuthSettings.validate_token_resource` | `False` | Provider audiences differ from the MCP URL; verifiers enforce audience ([ADR-0027](adr/0027-explicit-token-resource-validation.md)) |
+| `cache_hints` for `server/discover`, `tools/list` | `30000` ms, `private` | Principal-dependent catalogs must not be shared ([ADR-0028](adr/0028-mcp-cache-hint-security-policy.md)) |
+
 ## Two different CI guarantees
 
 `quality.yml` remains deterministic: it validates the exact dependency graph recorded in
 `uv.lock`. `compatibility.yml` intentionally mutates only the disposable CI virtual environment
 after the locked sync:
 
-- `minimum` installs exactly MCP SDK 2.0.0;
-- `latest` upgrades MCP to the newest version resolvable by `mcp>=2.0,<3`;
+- `minimum` installs exactly MCP SDK 2.2.0;
+- `latest` upgrades MCP to the newest version resolvable by `mcp>=2.2,<3`;
 - the lockfile is never rewritten by the compatibility workflow;
 - tests run through `.venv/bin/python`, so `uv run` cannot resynchronize MCP back to the lock.
 
@@ -39,7 +52,7 @@ Support floor:
 
 ```bash
 uv sync --frozen --all-groups --python 3.13
-uv pip install --python .venv/bin/python "mcp==2.0.0"
+uv pip install --python .venv/bin/python "mcp==2.2.0"
 uv pip check
 .venv/bin/python scripts/compatibility_contract.py --python 3.13 --mcp-profile minimum
 .venv/bin/python -m pytest --no-cov
@@ -49,7 +62,7 @@ Moving 2.x edge:
 
 ```bash
 uv sync --frozen --all-groups --python 3.14
-uv pip install --python .venv/bin/python --upgrade "mcp>=2.0,<3"
+uv pip install --python .venv/bin/python --upgrade "mcp>=2.2,<3"
 uv pip check
 .venv/bin/python scripts/compatibility_contract.py --python 3.14 --mcp-profile latest
 .venv/bin/python -m pytest --no-cov

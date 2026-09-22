@@ -12,11 +12,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   server/client reference, with normative requirement mapping, executable evidence, explicit
   unclaimed cases, and feedback topics for the Authorization Interest Group and Tool Scopes Working
   Group.
+- Added SEP-2549 cache hints for `server/discover` and `tools/list` (`ttlMs=30000`,
+  `cacheScope=private`) and ADR-0028 forbidding `public` scope for principal-dependent results.
+- Added ADR-0027 and an executable contract for the explicit token-resource validation policy.
 
 ### Changed
 
 - Linked the implementer report from the main documentation and compatibility contract without
   changing the MCP authorization runtime or release version.
+- Raised the supported MCP Python SDK range to `>=2.2,<3`; the tested support floor is now `2.2.0`.
+- `AuthSettings.validate_token_resource` is set explicitly to `False`. Provider audience enforcement
+  remains in the token verifiers, and MCP SDK 3's default change no longer alters authorization
+  semantics.
+- `mcp.MCPDeprecationWarning` now fails the test suite; other deprecation classes are not promoted.
+
+### Fixed
+
+- `tools/list` returned an empty catalog to every caller because the SDK runner hands middleware
+  the serialized wire result, not a `ListToolsResult`. Per-principal filtering now operates on the
+  wire result and still fails closed on unexpected shapes; a full-stack test covers it.
 
 ### Added
 
@@ -26,6 +40,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- Upgraded transitive `httpx2` and `httpcore2` to `2.13.0` to resolve PYSEC-2026-3844 through
+  PYSEC-2026-3849.
 - Registry automation verifies the annotated release tag, default-branch ancestry, published GitHub
   Release, release digest evidence, public OCI version/commit digest binding and per-platform MCP
   ownership labels before requesting an OIDC credential.
