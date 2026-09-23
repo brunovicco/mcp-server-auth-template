@@ -26,6 +26,14 @@ uv run python scripts/quality_gate.py --check tests
 
 The complete gate remains the definition of done.
 
+### MCP SDK deprecations
+
+`pyproject.toml` sets `filterwarnings = ["error::mcp.MCPDeprecationWarning"]`. Code that calls an
+MCP SDK API scheduled to change in MCP 3, or leaves an SDK default implicit when the default is
+about to flip (for example `AuthSettings.validate_token_resource`), fails the test suite. Fix the
+call site or make the setting explicit and record the decision in an ADR; do not add an `ignore`
+filter to silence it.
+
 ## Container
 
 Native host-architecture build:

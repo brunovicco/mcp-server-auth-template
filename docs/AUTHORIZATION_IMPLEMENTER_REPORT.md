@@ -36,6 +36,18 @@ automation only; it does not change the authorization runtime represented by `v0
 The server is published in the Official MCP Registry as
 `io.github.brunovicco/mcp-server-auth-template@0.6.2`.
 
+**Unreleased server changes after `v0.6.2` (v0.7.0 line).** They are not yet part of the
+published snapshot above. Rows that rely on them say so.
+
+- MCP Python SDK floor raised to `>=2.2,<3`; `mcp.MCPDeprecationWarning` fails the test suite.
+- `AuthSettings.validate_token_resource=False` is explicit; audience enforcement stays in the
+  verifiers ([ADR-0027](adr/0027-explicit-token-resource-validation.md)).
+- `tools/list` filtering was corrected. In `v0.6.2` the middleware received the SDK's serialized
+  wire result and fell back to an empty catalog for every caller. Anonymous-hiding claims held,
+  but only because nothing was ever listed.
+- `server/discover` and `tools/list` carry `private` cache hints with a 30 s TTL
+  ([ADR-0028](adr/0028-mcp-cache-hint-security-policy.md)).
+
 ## Status vocabulary
 
 | Status | Meaning |
@@ -125,6 +137,7 @@ authorization remains outside this deterministic report.
 | Wrong issuer rejected | Server MUST | **PAIR-E2E** | Deliberately wrong-issuer token returns `401` |
 | Expired token rejected | Server MUST | **PAIR-E2E** | Deliberately expired token returns `401` |
 | Signature, issuer, audience and expiry validated | Server MUST | **UNIT + PAIR-E2E** | Generic verifier requires `exp`, `iat`, `iss`, `aud`, `sub` and validates signature/issuer/audience |
+| Audience policy independent of SDK defaults (unreleased) | Server | **UNIT** | `validate_token_resource` pinned to `False`; full-stack tests accept a provider audience that differs from the MCP URL, reject other-resource audiences with `401`, and show SDK URL equality would reject valid provider tokens |
 | Inbound bearer token is never passed through to upstream APIs | Server MUST NOT | **UNIT** | OIDC outbound transport rejects any `Authorization` header before network I/O |
 
 ### Bearer-token transport and token storage
@@ -155,6 +168,8 @@ authorization remains outside this deterministic report.
 | Client preserves prior grant during step-up | Client SHOULD | **PAIR-E2E** | Second authorization requests `mcp:tools:call mcp:tools:health` |
 | Under-scoped operation is not dispatched before upgrade | Server | **PAIR-E2E + UNIT** | Verifier returns no access token for current request; outer middleware replaces SDK 401 with 403 before MCP dispatch |
 | Retry is bounded | Reference profile | **PAIR-E2E** | SDK retries the undispatched operation once after successful reauthorization |
+| Tool catalog filtered per principal (unreleased fix) | Server | **UNIT** | Full-stack `build_server` test: differently scoped principals receive different `tools/list` results; unexpected result shapes fail closed to an empty catalog |
+| Principal-dependent discovery never cached across authorization contexts (unreleased) | Server | **UNIT** | `server/discover` and `tools/list` carry `cacheScope=private`, `ttlMs=30000`; `public` is forbidden by policy test |
 | Per-tool OAuth scope advertisement before invocation | Emerging Tool Scopes topic | **NOT PROVIDED AS A PROACTIVE CATALOG CONTRACT** | Current pair is challenge-driven; this is a primary feedback item for the Tool Scopes WG |
 | Semantic scope hierarchy / broader-scope implication | Emerging Tool Scopes topic | **NOT CLAIMED** | Current reference policy uses explicit scope strings and exact set membership |
 
@@ -194,7 +209,9 @@ The report intentionally does not attribute SDK behavior to project code.
 
 **These repositories add or tighten:**
 
-- exact generic-OIDC and Entra issuer/audience token validation adapters;
+- exact generic-OIDC and Entra issuer/audience token validation adapters, with the SDK's
+  URL-equality resource check explicitly disabled in their favor;
+- private, bounded cache hints for principal-dependent discovery;
 - Entra tenant pinning and pre-registered public-client profile;
 - SSRF-resistant, DNS-pinned OAuth/OIDC control-plane transports;
 - fail-closed local token storage;

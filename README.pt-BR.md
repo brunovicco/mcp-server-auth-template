@@ -27,7 +27,9 @@ O fluxo executável do par valida comportamento real do resource server, e não 
 - ✅ issuer, assinatura, expiração, algoritmo/chave e tipo do chamador falham de forma fechada
 - ✅ scopes delegados e application roles do Entra permanecem conceitos distintos
 - ✅ retorna `403 insufficient_scope` antes do dispatch para autorização progressiva
-- ✅ rejeita token com audience incorreta com `401`
+- ✅ rejeita token com audience incorreta com `401`, com política explícita de token-resource que não
+  depende de defaults do MCP SDK
+- ✅ filtra `tools/list` por principal e publica apenas cache hints `private` com TTL limitado
 - ✅ mantém tools protegidas fora do catálogo anônimo
 - ✅ mantém MCP `2026-07-28` stateless, sem emitir `Mcp-Session-Id`
 - ✅ suporta OIDC genérico e Microsoft Entra ID sem vazar detalhes do provider para a aplicação
@@ -145,16 +147,19 @@ uv run python -m mcp_server_auth_template.entrypoints.serve
 
 Leia [Operações](docs/OPERATIONS.md) antes de expor o serviço fora de loopback.
 
-## Preparação para o Official MCP Registry
+## Official MCP Registry
 
-O P2.1 prepara este repositório para o namespace
-`io.github.brunovicco/mcp-server-auth-template` no Official MCP Registry. O `server.json` descreve a
-imagem pública do GHCR como pacote OCI usando o transporte real `streamable-http`; ele não declara
-um endpoint hospedado em `remotes`. A versão `0.6.1` fica reservada como a primeira versão imutável
-da imagem com o label de ownership `io.modelcontextprotocol.server.name` exigido pelo Registry.
+O servidor está publicado no Official MCP Registry como:
 
-A publicação no Registry continua separada desta mudança de readiness e só acontece depois que o
-pipeline seguro validar o OCI index final. Veja [Official MCP Registry](docs/REGISTRY.pt-BR.md).
+`io.github.brunovicco/mcp-server-auth-template@0.6.2`
+
+O `server.json` descreve a imagem pública do GHCR como pacote OCI usando o transporte real
+`streamable-http`; ele não declara um endpoint hospedado em `remotes`. A publicação é controlada pelo
+pipeline seguro de release e por um workflow dedicado do Registry, que valida a imagem imutável, os
+metadados de ownership e as respostas persistidas do Registry antes de publicar.
+
+Veja [Official MCP Registry](docs/REGISTRY.pt-BR.md) e o
+[Authorization Implementer Report](docs/AUTHORIZATION_IMPLEMENTER_REPORT.md).
 
 ## Propriedades de segurança
 
@@ -162,6 +167,11 @@ A implementação é intencionalmente fail-closed:
 
 - validação exata de issuer e audience, limites de relógio, compatibilidade de algoritmo/chave e
   refresh de JWKS em cache;
+- política explícita `validate_token_resource=False`: audiences do provider (client ID da API no
+  Entra, identificadores `api://`) são validadas pelo token verifier, nunca por igualdade textual de
+  URL no SDK ([ADR-0027](docs/adr/0027-explicit-token-resource-validation.md));
+- resultados de discovery que dependem do principal nunca são compartilháveis entre contextos de
+  autorização ([ADR-0028](docs/adr/0028-mcp-cache-hint-security-policy.md));
 - egress endurecido para discovery/JWKS contra esquemas inseguros, redirects, compressão, corpos
   grandes, destinos privados/reservados, respostas DNS mistas e DNS rebinding;
 - admissão de Host, Origin, headers, envelope, tamanho do corpo e concorrência antes da autenticação
@@ -176,6 +186,8 @@ Esta é uma implementação de referência, não uma certificação de seguranç
 
 ## MCP `2026-07-28`
 
+Baseline: especificação MCP `2026-07-28` e MCP Python SDK `>=2.2,<3`.
+
 O par de templates exercita o perfil moderno stateless como comportamento executável:
 
 - `server/discover` e `_meta` por requisição carregam versão, identidade e capacidades sem o
@@ -184,6 +196,8 @@ O par de templates exercita o perfil moderno stateless como comportamento execut
 - as respostas não emitem `Mcp-Session-Id`;
 - Protected Resource Metadata conduz o discovery;
 - RFC 8707 `resource` vincula exatamente a audience do access token;
+- `server/discover` e `tools/list` carregam cache hints da SEP-2549 (`ttlMs=30000`,
+  `cacheScope=private`);
 - `403 insufficient_scope` preserva grants existentes e permite apenas um replay limitado da
   operação ainda não executada;
 - acesso máquina-a-máquina é opt-in por
@@ -208,7 +222,8 @@ Veja [Observabilidade](docs/LLM_OBSERVABILITY.md).
 - inventários CycloneDX, relatório completo de vulnerabilidades e política fail-closed de exceções;
 - artifacts Python allowlisted e reprodutíveis byte a byte com SHA-256 e build provenance;
 - publicação GHCR aprovada por política com digest imutável, provenance e SBOM attestations;
-- Python 3.13/3.14 contra MCP SDK 2.0.0 e 2.x compatível mais recente;
+- Python 3.13/3.14 contra MCP SDK 2.2.0 e 2.x compatível mais recente, com warnings de
+  depreciação do MCP SDK promovidos a falhas de teste para antecipar quebras do MCP 3;
 - fixtures JWT offline com chaves locais e identidades sintéticas;
 - ADRs para decisões de segurança, protocolo, operação, compatibilidade, observabilidade e
   supply chain.

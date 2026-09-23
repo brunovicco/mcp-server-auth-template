@@ -99,6 +99,7 @@ def _server(verifier: _TokenVerifier) -> MCPServer:
         auth=AuthSettings(
             issuer_url="https://as.example.invalid",
             resource_server_url=_RESOURCE_URL,
+            validate_token_resource=False,
         ),
     )
 

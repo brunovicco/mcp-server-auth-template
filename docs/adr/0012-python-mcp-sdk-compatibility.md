@@ -38,3 +38,13 @@ major version is detected without changing the lockfile.
   intentionally.
 - CI cost increases by four test-suite executions per compatibility workflow run.
 - Provider/transport and client-server interoperability matrices remain separate follow-up work.
+
+## Addendum (2026-09-22): MCP SDK 2.2 floor
+
+The support floor moved deliberately to MCP SDK `2.2.0` (`mcp>=2.2,<3`). SDK 2.2 adds the explicit
+`AuthSettings.validate_token_resource` policy (ADR-0027) and SEP-2549 cache hints (ADR-0028), which
+this repository now depends on. The `minimum` profile installs exactly `mcp==2.2.0`;
+`scripts/compatibility_contract.py`, `compatibility.yml` and the package metadata changed together.
+
+The test suite now also promotes `mcp.MCPDeprecationWarning` to an error, so SDK APIs scheduled to
+change in MCP 3 fail the compatibility matrix while the project still runs on MCP 2.x.

@@ -26,7 +26,9 @@ The paired executable path validates real resource-server behavior rather than c
 - ✅ issuer, signature, expiry, algorithm/key compatibility and caller type fail closed
 - ✅ delegated scopes and Entra application roles remain distinct authorization concepts
 - ✅ `403 insufficient_scope` is returned before dispatch for progressive authorization
-- ✅ wrong-audience tokens are rejected with `401`
+- ✅ wrong-audience tokens are rejected with `401`, with an explicit token-resource policy that does
+  not depend on MCP SDK defaults
+- ✅ `tools/list` is filtered per principal and carries only bounded `private` cache hints
 - ✅ protected tools stay hidden from anonymous catalog discovery
 - ✅ MCP `2026-07-28` stays stateless and does not mint `Mcp-Session-Id`
 - ✅ generic OIDC and Microsoft Entra ID share one application boundary without provider leakage
@@ -145,16 +147,19 @@ uv run python -m mcp_server_auth_template.entrypoints.serve
 
 See [Production operations](docs/OPERATIONS.md) before exposing the service outside loopback.
 
-## Official MCP Registry readiness
+## Official MCP Registry
 
-P2.1 prepares this repository for the Official MCP Registry namespace
-`io.github.brunovicco/mcp-server-auth-template`. `server.json` describes the public GHCR image as
-an OCI package using the real `streamable-http` transport; it does not claim a hosted `remotes`
-endpoint. Version `0.6.1` is reserved as the first immutable image version carrying the required
-`io.modelcontextprotocol.server.name` ownership label.
+The server is published in the Official MCP Registry as:
 
-Registry publication is deliberately separate from this readiness change and happens only after the
-secure release pipeline validates the final OCI index. See [Official MCP Registry](docs/REGISTRY.md).
+`io.github.brunovicco/mcp-server-auth-template@0.6.2`
+
+`server.json` describes the public GHCR image as an OCI package using the real
+`streamable-http` transport; it does not claim a hosted `remotes` endpoint. Publication is gated by
+the secure release pipeline and a dedicated Registry workflow that validates the immutable image,
+ownership metadata, and persisted Registry responses before publication.
+
+See [Official MCP Registry](docs/REGISTRY.md) and the
+[Authorization Implementer Report](docs/AUTHORIZATION_IMPLEMENTER_REPORT.md).
 
 ## Security properties
 
@@ -162,6 +167,11 @@ The implementation is deliberately fail closed:
 
 - exact issuer and audience validation, bounded clock checks, algorithm/key compatibility and
   cached JWKS refresh;
+- an explicit `validate_token_resource=False` policy: provider audiences (Entra API client ID,
+  `api://` identifiers) are enforced by the token verifier, never by SDK URL string equality
+  ([ADR-0027](docs/adr/0027-explicit-token-resource-validation.md));
+- principal-dependent discovery results are never shareable across authorization contexts
+  ([ADR-0028](docs/adr/0028-mcp-cache-hint-security-policy.md));
 - hardened discovery/JWKS egress against unsafe schemes, redirects, compression, oversized bodies,
   private/reserved destinations, mixed DNS answers and DNS rebinding;
 - Host, Origin, header, envelope, body-size and concurrency admission before authentication and tool
@@ -178,6 +188,8 @@ This is a transparent reference implementation, not a security certification. Re
 
 ## MCP `2026-07-28`
 
+Baseline: MCP specification `2026-07-28` and MCP Python SDK `>=2.2,<3`.
+
 The paired templates exercise the modern stateless profile as executable behavior:
 
 - `server/discover` and per-request `_meta` carry protocol version, client identity and capabilities
@@ -186,6 +198,8 @@ The paired templates exercise the modern stateless profile as executable behavio
 - responses do not mint `Mcp-Session-Id`;
 - Protected Resource Metadata drives authorization-server discovery;
 - RFC 8707 `resource` binds the access token audience exactly;
+- `server/discover` and `tools/list` carry SEP-2549 cache hints (`ttlMs=30000`,
+  `cacheScope=private`);
 - runtime `403 insufficient_scope` preserves prior grants and permits only one bounded replay of
   the undispatched operation;
 - machine-to-machine access is opt-in through
@@ -212,7 +226,8 @@ See [LLM and application observability](docs/LLM_OBSERVABILITY.md).
 - allowlisted byte-reproducible Python release artifacts with SHA-256 manifests and GitHub build
   provenance;
 - policy-approved GHCR publication with immutable digest, provenance and SBOM attestations;
-- Python 3.13/3.14 against MCP SDK 2.0.0 and latest compatible 2.x;
+- Python 3.13/3.14 against MCP SDK 2.2.0 and latest compatible 2.x, with MCP SDK deprecation
+  warnings promoted to test failures so MCP 3 breakage surfaces early;
 - offline JWT fixtures using local keys and synthetic identities;
 - ADRs documenting security, protocol, operations, compatibility, observability and supply-chain
   decisions.

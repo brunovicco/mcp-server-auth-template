@@ -77,6 +77,37 @@ async def test_rejects_the_wrong_audience(keypair: SigningKeyPair) -> None:
     assert await _verifier(keypair).verify_token(token) is None
 
 
+async def test_accepts_a_multi_audience_token_and_reports_only_the_configured_resource(
+    keypair: SigningKeyPair,
+) -> None:
+    token = sign_test_token(
+        keypair,
+        issuer=_ISSUER,
+        audience=_AUDIENCE,
+        extra_claims={"aud": ["https://someone-else.example.invalid", _AUDIENCE]},
+    )
+
+    access_token = await _verifier(keypair).verify_token(token)
+
+    assert access_token is not None
+    assert access_token.resource == _AUDIENCE
+
+
+async def test_rejects_a_multi_audience_token_without_the_configured_audience(
+    keypair: SigningKeyPair,
+) -> None:
+    token = sign_test_token(
+        keypair,
+        issuer=_ISSUER,
+        audience=_AUDIENCE,
+        extra_claims={
+            "aud": ["https://someone-else.example.invalid", "https://mcp.example.invalid/other"]
+        },
+    )
+
+    assert await _verifier(keypair).verify_token(token) is None
+
+
 async def test_rejects_the_wrong_issuer(keypair: SigningKeyPair) -> None:
     token = sign_test_token(
         keypair, issuer="https://not-the-configured-issuer.invalid", audience=_AUDIENCE

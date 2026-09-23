@@ -33,17 +33,7 @@ class ToolAuthorizationMiddleware:
     ) -> HandlerResult:
         """Filter tool discovery and reject unauthorized calls before tool execution."""
         if ctx.method == "tools/list":
-            result = await call_next(ctx)
-            if not isinstance(result, ListToolsResult):
-                # The template's high-level MCPServer handler always returns
-                # ListToolsResult. If that invariant changes, do not leak an
-                # unfiltered tool catalog.
-                return ListToolsResult(tools=[])
-            principal = principal_from_request(ctx.request, self._auth_provider)
-            visible = [
-                tool for tool in result.tools if self._authorizer.is_visible(tool.name, principal)
-            ]
-            return result.model_copy(update={"tools": visible})
+            return self._filter_tool_list(await call_next(ctx), ctx)
 
         if ctx.method != "tools/call":
             return await call_next(ctx)
@@ -70,3 +60,32 @@ class ToolAuthorizationMiddleware:
             content=[TextContent(type="text", text=_DENIED_TEXT)],
             is_error=True,
         )
+
+    def _filter_tool_list(
+        self, result: HandlerResult, ctx: ServerRequestContext[Any, Any]
+    ) -> HandlerResult:
+        """Keep only the tools the request principal may call.
+
+        The SDK runner serializes handler results to their wire dict inside the
+        middleware chain, so ``call_next`` normally returns a mapping here; a
+        ``ListToolsResult`` is still accepted for handlers that return the model.
+        Any other shape fails closed to an empty catalog rather than leaking it.
+        """
+        principal = principal_from_request(ctx.request, self._auth_provider)
+        if isinstance(result, ListToolsResult):
+            visible_models = [
+                tool for tool in result.tools if self._authorizer.is_visible(tool.name, principal)
+            ]
+            return result.model_copy(update={"tools": visible_models})
+        if isinstance(result, dict):
+            tools = result.get("tools")
+            if isinstance(tools, list):
+                visible = [
+                    tool
+                    for tool in tools
+                    if isinstance(tool, dict)
+                    and isinstance(name := tool.get("name"), str)
+                    and self._authorizer.is_visible(name, principal)
+                ]
+                return {**result, "tools": visible}
+        return ListToolsResult(tools=[])

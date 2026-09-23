@@ -16,6 +16,7 @@ Run locally with:
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from importlib.metadata import version
+from types import MappingProxyType
 from typing import cast
 from urllib.parse import urlsplit
 
@@ -28,6 +29,7 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import TokenVerifier
 from mcp.server.auth.routes import build_resource_metadata_url
 from mcp.server.auth.settings import AuthSettings
+from mcp.server.caching import CacheableMethod, CacheHint
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
@@ -69,6 +71,16 @@ _HEALTH_SCOPE = "mcp:tools:health"
 _MCP_HTTP_PATH = "/mcp"
 _OPERATIONAL_PROBE_PATHS = frozenset({"/livez", "/readyz"})
 _SERVICE_VERSION = version("mcp-server-auth-template")
+# SEP-2549 freshness hints (ADR-0028). ``tools/list`` is filtered per principal, so
+# every hint is ``private`` - reusable only within the authorization context that
+# produced it - and bounded so policy or scope changes are picked up quickly.
+_DISCOVERY_CACHE_TTL_MS = 30_000
+_CACHE_HINTS: Mapping[CacheableMethod, CacheHint] = MappingProxyType(
+    {
+        "server/discover": CacheHint(ttl_ms=_DISCOVERY_CACHE_TTL_MS, scope="private"),
+        "tools/list": CacheHint(ttl_ms=_DISCOVERY_CACHE_TTL_MS, scope="private"),
+    }
+)
 
 
 def build_observability_settings(settings: Settings) -> ObservabilitySettings:
@@ -286,6 +298,25 @@ def _resolve_issuer_url(settings: Settings) -> str:
     return settings.generic_issuer_url
 
 
+def _build_auth_settings(settings: Settings, issuer_url: str) -> AuthSettings:
+    """Build the SDK resource-server settings with an explicit token-resource policy.
+
+    ``validate_token_resource`` is pinned to ``False`` rather than left to the SDK
+    default, which warns in 2.x and flips to ``True`` in MCP 3. SDK resource checking
+    compares ``AccessToken.resource`` to ``resource_server_url`` as strings, but
+    provider audiences are not that URL (Entra uses the API client ID). The token
+    verifiers enforce issuer, expiry, and provider audience themselves, so tokens
+    minted for another resource are still refused. See
+    ``docs/adr/0027-explicit-token-resource-validation.md``.
+    """
+    return AuthSettings(
+        issuer_url=issuer_url,
+        resource_server_url=settings.resource_server_url,
+        required_scopes=settings.effective_required_scopes or None,
+        validate_token_resource=False,
+    )
+
+
 def build_server(
     settings: Settings | None = None,
     *,
@@ -334,11 +365,8 @@ def build_server(
         name=settings.service_name,
         extensions=[OAuthClientCredentialsExtension()],
         token_verifier=token_verifier,
-        auth=AuthSettings(
-            issuer_url=issuer_url,
-            resource_server_url=settings.resource_server_url,
-            required_scopes=settings.effective_required_scopes or None,
-        ),
+        auth=_build_auth_settings(settings, issuer_url),
+        cache_hints=_CACHE_HINTS,
         lifespan=lifespan,
         middleware=[
             ToolAuthorizationMiddleware(

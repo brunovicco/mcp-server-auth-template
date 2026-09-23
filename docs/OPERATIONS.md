@@ -57,6 +57,20 @@ tenant/client identifiers, scopes, headers, tokens, and other credential-shaped 
 failures report only an error category plus Pydantic location/type metadata; invalid input values
 are never echoed.
 
+## Token audience and discovery caching
+
+Configure the audience your authorization server actually puts in `aud`:
+`MCP_SERVER_GENERIC_AUDIENCE` for generic OIDC (often an `api://` identifier or the MCP URL), and
+`MCP_SERVER_ENTRA_AUDIENCE` (the API application's client ID) for Entra. The MCP SDK's
+URL-equality resource check is intentionally disabled (`validate_token_resource=False`, ADR-0027).
+The token verifier is the only audience gate, so a wrong audience value rejects every token rather
+than accepting foreign ones.
+
+`server/discover` and `tools/list` responses carry `ttlMs=30000` and `cacheScope=private`
+(ADR-0028). After a scope grant or tool-policy change, well-behaved clients may keep showing the
+previous catalog for up to 30 seconds. Authorization is still enforced on every `tools/call`, so a
+stale catalog never grants access.
+
 ## Operational probes
 
 Two probe endpoints are intentionally outside MCP bearer authentication:
