@@ -151,7 +151,7 @@ Leia [Operações](docs/OPERATIONS.md) antes de expor o serviço fora de loopbac
 
 O servidor está publicado no Official MCP Registry como:
 
-`io.github.brunovicco/mcp-server-auth-template@0.6.2`
+`io.github.brunovicco/mcp-server-auth-template@0.7.0`
 
 O `server.json` descreve a imagem pública do GHCR como pacote OCI usando o transporte real
 `streamable-http`; ele não declara um endpoint hospedado em `remotes`. A publicação é controlada pelo

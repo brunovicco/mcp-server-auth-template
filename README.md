@@ -151,7 +151,7 @@ See [Production operations](docs/OPERATIONS.md) before exposing the service outs
 
 The server is published in the Official MCP Registry as:
 
-`io.github.brunovicco/mcp-server-auth-template@0.6.2`
+`io.github.brunovicco/mcp-server-auth-template@0.7.0`
 
 `server.json` describes the public GHCR image as an OCI package using the real
 `streamable-http` transport; it does not claim a hosted `remotes` endpoint. Publication is gated by
