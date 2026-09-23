@@ -74,7 +74,7 @@ def _set_repository_id(value: str) -> ServerMutation:
 
 
 def test_registry_metadata_accepts_repository_contract(registry_root: Path) -> None:
-    validate(registry_root, release_tag="v0.6.2")
+    validate(registry_root, release_tag="v0.7.0")
 
 
 @pytest.mark.parametrize(

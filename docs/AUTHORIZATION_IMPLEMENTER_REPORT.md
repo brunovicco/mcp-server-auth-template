@@ -36,8 +36,8 @@ automation only; it does not change the authorization runtime represented by `v0
 The server is published in the Official MCP Registry as
 `io.github.brunovicco/mcp-server-auth-template@0.6.2`.
 
-**Unreleased server changes after `v0.6.2` (v0.7.0 line).** They are not yet part of the
-published snapshot above. Rows that rely on them say so.
+**Server changes released in `v0.7.0`, after the `v0.6.2` snapshot.** The snapshot above predates
+them. Rows that rely on them say so.
 
 - MCP Python SDK floor raised to `>=2.2,<3`; `mcp.MCPDeprecationWarning` fails the test suite.
 - `AuthSettings.validate_token_resource=False` is explicit; audience enforcement stays in the

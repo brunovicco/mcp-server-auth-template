@@ -24,7 +24,7 @@ Git release tag v<version>
 
 For `registryType: "oci"`, `packages[].version` must be omitted. OCI version identity is encoded
 only in the canonical `identifier`, for example
-`ghcr.io/brunovicco/mcp-server-auth-template:v0.6.2`.
+`ghcr.io/brunovicco/mcp-server-auth-template:v0.7.0`.
 
 `registryBaseUrl` and `fileSha256` are also intentionally absent from the OCI package metadata.
 
@@ -86,7 +86,7 @@ execution.
 For a release tag:
 
 ```bash
-uv run python scripts/validate_registry_metadata.py --release-tag v0.6.2
+uv run python scripts/validate_registry_metadata.py --release-tag v0.7.0
 ```
 
 ## Automated publication

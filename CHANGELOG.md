@@ -6,25 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-22
+
 ### Added
 
+- Added SEP-2549 cache hints for `server/discover` and `tools/list` (`ttlMs=30000`,
+  `cacheScope=private`) and ADR-0028 forbidding `public` scope for principal-dependent results.
+- Added ADR-0027 and an executable contract for the explicit token-resource validation policy.
+- Added the v0.7.0 client/server pair entries to the cross-repository compatibility contract:
+  positive `mcp-sdk-2.2`, `oauth-private-key-jwt`, `tools/list:authorization-filtered`; negative
+  `authorization-server-issuer-binding`, `oauth-cross-origin-redirect-rejection`,
+  `oauth-prm-fail-closed`, `token-audience-validation`.
 - Added an evidence-first MCP `2026-07-28` Authorization Implementer Report covering the paired
   server/client reference, with normative requirement mapping, executable evidence, explicit
   unclaimed cases, and feedback topics for the Authorization Interest Group and Tool Scopes Working
   Group.
-- Added SEP-2549 cache hints for `server/discover` and `tools/list` (`ttlMs=30000`,
-  `cacheScope=private`) and ADR-0028 forbidding `public` scope for principal-dependent results.
-- Added ADR-0027 and an executable contract for the explicit token-resource validation policy.
+- Added a dedicated Official MCP Registry publication workflow that runs only after the secure
+  release workflow completes successfully and authenticates with GitHub OIDC.
+- Added executable validation for persisted Registry exact-version, latest and discovery responses.
 
 ### Changed
 
-- Linked the implementer report from the main documentation and compatibility contract without
-  changing the MCP authorization runtime or release version.
 - Raised the supported MCP Python SDK range to `>=2.2,<3`; the tested support floor is now `2.2.0`.
 - `AuthSettings.validate_token_resource` is set explicitly to `False`. Provider audience enforcement
   remains in the token verifiers, and MCP SDK 3's default change no longer alters authorization
   semantics.
 - `mcp.MCPDeprecationWarning` now fails the test suite; other deprecation classes are not promoted.
+- Linked the implementer report from the main documentation and compatibility contract.
 
 ### Fixed
 
@@ -32,14 +40,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the serialized wire result, not a `ListToolsResult`. Per-principal filtering now operates on the
   wire result and still fails closed on unexpected shapes; a full-stack test covers it.
 
-### Added
-
-- Added a dedicated Official MCP Registry publication workflow that runs only after the secure
-  release workflow completes successfully and authenticates with GitHub OIDC.
-- Added executable validation for persisted Registry exact-version, latest and discovery responses.
-
 ### Security
 
+- Refreshed the pinned `python:3.13-slim` base image to CPython 3.13.15, clearing the base-image
+  findings with available fixes that failed the SBOM/grype policy.
+- Replaced the vulnerability exceptions: the three CPython 3.13.14 exceptions (CVE-2026-11940,
+  CVE-2026-11972, CVE-2026-15308) were removed as stale, and CVE-2026-82049 (`tarfile` extraction
+  filters) carries a reviewed exception until 2026-10-15, pending the CPython 3.13.16 image.
 - Upgraded transitive `httpx2` and `httpcore2` to `2.13.0` to resolve PYSEC-2026-3844 through
   PYSEC-2026-3849.
 - Registry automation verifies the annotated release tag, default-branch ancestry, published GitHub
@@ -254,7 +261,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Raw bearer tokens and full identity-provider claims are excluded from the application principal
   and security audit surface.
 
-[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.6.2...v0.7.0
 [0.6.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/brunovicco/mcp-server-auth-template/compare/v0.3.0...v0.4.0
